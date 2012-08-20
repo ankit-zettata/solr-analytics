@@ -166,7 +166,9 @@ public class PivotFacetHelper {
           subset = searcher.getDocSet(query, docs);
           sf = getFacetImplementation(rb.req, subset, rb.req.getParams());
           NamedList<Object> subFieldStats = sf.getFacetPercentileCounts();
-          pivot.add( "statistics", subFieldStats);
+          if (subFieldStats != null && subFieldStats.size() > 0) {
+        	  pivot.add( "statistics", subFieldStats);
+          }
         }
         
                       
@@ -182,20 +184,28 @@ public class PivotFacetHelper {
             subset = searcher.getDocSet(query, docs);
             sf = getFacetImplementation(rb.req, subset, rb.req.getParams());
             NamedList<Object> subFieldStats = sf.getFacetPercentileCounts();
-            pivot.add( "statistics", subFieldStats);
+            if (subFieldStats != null && subFieldStats.size() > 0) {
+            	pivot.add( "statistics", subFieldStats);
+            }
           }
           
           NamedList<Integer> nl = sf.getTermCounts(subField);
           if (distinct) {
             pivot.add("distinct", nl.size());
             if (depth > 1) {
-              pivot.add( "pivot", doPivots( nl, subField, nextField, fnames, rb, subset, minMatch, distinct, maxDepth, depth-1 ) );
+              List<NamedList<Object>> list = doPivots( nl, subField, nextField, fnames, rb, subset, minMatch, distinct, maxDepth, depth-1 );
+              if (list.size() > 0) {
+            	  pivot.add( "pivot", list);
+              }
               values.add( pivot );
             }
           } else {
             if (nl.size() >= minMatch) {
-              pivot.add( "pivot", doPivots( nl, subField, nextField, fnames, rb, subset, minMatch, distinct, maxDepth, depth-1 ) );
-              values.add( pivot ); // only add response if there are some counts
+              List<NamedList<Object>> list = doPivots( nl, subField, nextField, fnames, rb, subset, minMatch, distinct, maxDepth, depth-1 );
+              if (list.size() > 0) {
+            	pivot.add( "pivot",  list);
+              }
+              values.add( pivot );
             }
           }
         }
