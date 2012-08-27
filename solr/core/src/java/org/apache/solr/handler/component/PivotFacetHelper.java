@@ -166,9 +166,9 @@ public class PivotFacetHelper {
           subset = searcher.getDocSet(query, docs);
           sf = getFacetImplementation(rb.req, subset, rb.req.getParams());
           NamedList<Object> subFieldStats = sf.getFacetPercentileCounts();
-          if (subFieldStats != null && subFieldStats.size() > 0) {
+          // if (subFieldStats != null && subFieldStats.size() > 0) {
         	  pivot.add( "statistics", subFieldStats);
-          }
+          // }
         }
         
                       
@@ -184,9 +184,9 @@ public class PivotFacetHelper {
             subset = searcher.getDocSet(query, docs);
             sf = getFacetImplementation(rb.req, subset, rb.req.getParams());
             NamedList<Object> subFieldStats = sf.getFacetPercentileCounts();
-            if (subFieldStats != null && subFieldStats.size() > 0) {
+            // if (subFieldStats != null && subFieldStats.size() > 0) {
             	pivot.add( "statistics", subFieldStats);
-            }
+            // }
           }
           
           NamedList<Integer> nl = sf.getTermCounts(subField);
@@ -194,17 +194,17 @@ public class PivotFacetHelper {
             pivot.add("distinct", nl.size());
             if (depth > 1) {
               List<NamedList<Object>> list = doPivots( nl, subField, nextField, fnames, rb, subset, minMatch, distinct, maxDepth, depth-1 );
-              if (list.size() > 0) {
+              // if (list.size() > 0) {
             	  pivot.add( "pivot", list);
-              }
+              // }
               values.add( pivot );
             }
           } else {
             if (nl.size() >= minMatch) {
               List<NamedList<Object>> list = doPivots( nl, subField, nextField, fnames, rb, subset, minMatch, distinct, maxDepth, depth-1 );
-              if (list.size() > 0) {
+              // if (list.size() > 0) {
             	pivot.add( "pivot",  list);
-              }
+              // }
               values.add( pivot );
             }
           }
