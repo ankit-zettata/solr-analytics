@@ -62,22 +62,9 @@ public class StatsComponent extends SearchComponent {
   public void process(ResponseBuilder rb) throws IOException {
     if (rb.doStats) {
       SolrParams params = rb.req.getParams();
-      
-      
-      // grab field facets
-      HashMap<String,String[]> fieldFacets = new HashMap<String,String[]>();
-      if (null != params.getParams(StatsParams.STATS_FIELD)) {
-        for (String f : params.getParams(StatsParams.STATS_FIELD)) {
-          fieldFacets.put(f, params.getFieldParams(f, StatsParams.STATS_FACET));
-        }
-      }
-      
-      SimpleStats s = new SimpleStats(rb.req.getSearcher(), 
-                                      rb.getResults().docSet, 
-                                      params.getParams(StatsParams.STATS_FIELD), 
-                                      fieldFacets,
-                                      params.getBool(ShardParams.IS_SHARD, false), 
-                                      params.getBool("stats.minimal", false));      
+      SimpleStats s = new SimpleStats(rb.req,
+              rb.getResults().docSet,
+              params );
 
       // TODO ???? add this directly to the response, or to the builder?
       rb.rsp.add( "stats", s.getStatsCounts() );
@@ -170,5 +157,143 @@ public class StatsComponent extends SearchComponent {
   public String getSource() {
     return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/handler/component/StatsComponent.java $";
   }
+
+}
+
+class StatsInfo {
+  Map<String, StatsValues> statsFields;
+
+  void parse(SolrParams params, ResponseBuilder rb) {
+    statsFields = new HashMap<String, StatsValues>();
+
+    String[] statsFs = params.getParams(StatsParams.STATS_FIELD);
+    if (statsFs != null) {
+      for (String field : statsFs) {
+        SchemaField sf = rb.req.getSchema().getField(field);
+        statsFields.put(field, StatsValuesFactory.createStatsValues(sf));
+      }
+    }
+  }
+}
+
+
+class SimpleStats {
+
+  /** The main set of documents */
+  protected DocSet docs;
+  /** Configuration params behavior should be driven by */
+  protected SolrParams params;
+  /** Searcher to use for all calculations */
+  protected SolrIndexSearcher searcher;
+  protected SolrQueryRequest req;
+
+  public SimpleStats(SolrQueryRequest req,
+                      DocSet docs,
+                      SolrParams params) {
+    this.req = req;
+    this.searcher = req.getSearcher();
+    this.docs = docs;
+    this.params = params;
+  }
+
+  public NamedList<Object> getStatsCounts() throws IOException {
+    NamedList<Object> res = new SimpleOrderedMap<Object>();
+    res.add("stats_fields", getStatsFields());
+    return res;
+  }
+
+  public NamedList<Object> getStatsFields() throws IOException {
+    NamedList<Object> res = new SimpleOrderedMap<Object>();
+    String[] statsFs = params.getParams(StatsParams.STATS_FIELD);
+    boolean isShard = params.getBool(ShardParams.IS_SHARD, false);
+    if (null != statsFs) {
+      for (String f : statsFs) {
+        String[] facets = params.getFieldParams(f, StatsParams.STATS_FACET);
+        if (facets == null) {
+          facets = new String[0]; // make sure it is something...
+        }
+        SchemaField sf = searcher.getSchema().getField(f);
+        FieldType ft = sf.getType();
+        NamedList<?> stv;
+
+        // Currently, only UnInvertedField can deal with multi-part trie fields
+        String prefix = TrieField.getMainValuePrefix(ft);
+
+        if (sf.multiValued() || ft.multiValuedFieldCache() || prefix!=null) {
+          //use UnInvertedField for multivalued fields
+          UnInvertedField uif = UnInvertedField.getUnInvertedField(f, searcher);
+          stv = uif.getStats(searcher, docs, facets).getStatsValues();
+        } else {
+          stv = getFieldCacheStats(f, facets);
+        }
+        if (isShard == true || (Long) stv.get("count") > 0) {
+          res.add(f, stv);
+        } else {
+          res.add(f, null);
+        }
+      }
+    }
+    return res;
+  }
+  
+  // why does this use a top-level field cache?
+  public NamedList<?> getFieldCacheStats(String fieldName, String[] facet ) {
+    SchemaField sf = searcher.getSchema().getField(fieldName);
+    
+    FieldCache.DocTermsIndex si;
+    try {
+      si = FieldCache.DEFAULT.getTermsIndex(searcher.getAtomicReader(), fieldName);
+    } 
+    catch (IOException e) {
+      throw new RuntimeException( "failed to open field cache for: "+fieldName, e );
+    }
+    StatsValues allstats = StatsValuesFactory.createStatsValues(sf);
+    final int nTerms = si.numOrd();
+    if ( nTerms <= 0 || docs.size() <= 0 ) return allstats.getStatsValues();
+
+    // don't worry about faceting if no documents match...
+    List<FieldFacetStats> facetStats = new ArrayList<FieldFacetStats>();
+    FieldCache.DocTermsIndex facetTermsIndex;
+    for( String facetField : facet ) {
+      SchemaField fsf = searcher.getSchema().getField(facetField);
+
+      if ( fsf.multiValued()) {
+        throw new SolrException(SolrException.ErrorCode.BAD_REQUEST,
+          "Stats can only facet on single-valued fields, not: " + facetField );
+      }
+
+      try {
+        facetTermsIndex = FieldCache.DEFAULT.getTermsIndex(searcher.getAtomicReader(), facetField);
+      }
+      catch (IOException e) {
+        throw new RuntimeException( "failed to open field cache for: "
+          + facetField, e );
+      }
+      facetStats.add(new FieldFacetStats(facetField, facetTermsIndex, sf, fsf, nTerms));
+    }
+    
+    final BytesRef tempBR = new BytesRef();
+    DocIterator iter = docs.iterator();
+    while (iter.hasNext()) {
+      int docID = iter.nextDoc();
+      BytesRef raw = si.lookup(si.getOrd(docID), tempBR);
+      if( raw.length > 0 ) {
+        allstats.accumulate(raw);
+      } else {
+        allstats.missing();
+      }
+
+      // now update the facets
+      for (FieldFacetStats f : facetStats) {
+        f.facet(docID, raw);
+      }
+    }
+
+    for (FieldFacetStats f : facetStats) {
+      allstats.addFacet(f.name, f.facetStatsValues);
+    }
+    return allstats.getStatsValues();
+  }
+
 
 }

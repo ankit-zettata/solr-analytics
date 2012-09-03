@@ -19,8 +19,15 @@ package org.apache.lucene.index;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Set;
 
+import org.apache.lucene.util.FilterIterator;
+
+/**
+ * A {@link FilterAtomicReader} that exposes only a subset
+ * of fields from the underlying wrapped reader.
+ */
 public final class FieldFilterAtomicReader extends FilterAtomicReader {
   
   private final Set<String> fields;
@@ -56,8 +63,9 @@ public final class FieldFilterAtomicReader extends FilterAtomicReader {
       return null;
     }
     f = new FieldFilterFields(f);
-    // we need to check for emptyness, so we can return null:
-    return (f.iterator().next() == null) ? null : f;
+    // we need to check for emptyness, so we can return
+    // null:
+    return f.iterator().hasNext() ? f : null;
   }
 
   @Override
@@ -125,32 +133,24 @@ public final class FieldFilterAtomicReader extends FilterAtomicReader {
   }
   
   private class FieldFilterFields extends FilterFields {
+
     public FieldFilterFields(Fields in) {
       super(in);
     }
 
     @Override
-    public int size() throws IOException {
-      // TODO: add faster implementation!
-      int c = 0;
-      final FieldsEnum it = iterator();
-      while (it.next() != null) {
-        c++;
-      }
-      return c;
+    public int size() {
+      // this information is not cheap, return -1 like MultiFields does:
+      return -1;
     }
 
     @Override
-    public FieldsEnum iterator() throws IOException {
-      return new FilterFieldsEnum(super.iterator()) {
+    public Iterator<String> iterator() {
+      return new FilterIterator<String>(super.iterator()) {
         @Override
-        public String next() throws IOException {
-          String f;
-          while ((f = super.next()) != null) {
-            if (hasField(f)) return f;
-          }
-          return null;
-        } 
+        protected boolean predicateFunction(String field) {
+          return hasField(field);
+        }
       };
     }
 

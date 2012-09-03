@@ -1,0 +1,86 @@
+10
+
+dir
+1378379
+http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/dev-tools/maven/lucene/analysis
+http://svn.apache.org/repos/asf
+
+
+
+2012-08-07T22:04:32.595024Z
+1370561
+sarowe
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+13f79535-47bb-0310-9956-ffa450edef68
+
+kuromoji
+dir
+
+icu
+dir
+
+pom.xml.template
+file
+
+
+
+
+2012-08-28T23:30:07.046672Z
+49e430aac492a553cc8dc32f841c4453
+2012-04-17T13:36:19.817487Z
+1327094
+rmuir
+has-props
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+2106
+
+smartcn
+dir
+
+common
+dir
+
+morfologik
+dir
+
+phonetic
+dir
+
+stempel
+dir
+
+uima
+dir
+

@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.core.StopFilterFactory;
 import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.queries.function.BoostedQuery;
 import org.apache.lucene.queries.function.FunctionQuery;
@@ -36,7 +37,6 @@ import org.apache.lucene.queries.function.valuesource.QueryValueSource;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.queryparser.classic.QueryParser;
 import org.apache.lucene.search.*;
-import org.apache.solr.analysis.StopFilterFactory;
 import org.apache.solr.analysis.TokenizerChain;
 import org.apache.solr.search.SolrQueryParser.MagicFieldName;
 import org.apache.solr.common.params.DisMaxParams;
@@ -958,7 +958,7 @@ class ExtendedDismaxQParser extends QParser {
      * Returns the aliases found for a field.
      * Returns null if there are no aliases for the field
      * @param field
-     * @return
+     * @return Alias
      */
     public Alias getAlias(String field) {
       return aliases.get(field);

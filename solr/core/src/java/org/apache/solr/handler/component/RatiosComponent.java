@@ -9,8 +9,10 @@ import java.util.Set;
 import org.apache.commons.lang.time.StopWatch;
 import org.apache.lucene.queryparser.classic.ParseException;
 import org.apache.lucene.util.OpenBitSet;
+import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.ShardParams;
 import org.apache.solr.common.params.SolrParams;
+import org.apache.solr.common.params.StatsParams;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.SimpleOrderedMap;
 import org.apache.solr.search.DocSet;
@@ -101,43 +103,39 @@ public class RatiosComponent extends SearchComponent {
         
         // ====== stats for 1st
         stopwatch.start();
-        SimpleStats stats1 = new SimpleStats(rb.req.getSearcher(), 
-                                            set1, 
-                                            new String[] { measure }, 
-                                            fieldFacets,
-                                            params.getBool(ShardParams.IS_SHARD, false), 
-                                            true);
-        Map<String,Map<String,Double>> map1 = stats1.getFieldCacheStats(measure, new String[] { dimension }).getNumericFacetStats();
+        ModifiableSolrParams xp = new ModifiableSolrParams();
+        xp.add(StatsParams.STATS_FIELD, measure);
+        xp.add(StatsParams.STATS_FACET, dimension);
+        xp.add(ShardParams.IS_SHARD, String.valueOf(params.getBool(ShardParams.IS_SHARD, false)));
+        SimpleStats stats1 = new SimpleStats(rb.req, set1, xp);
+        
+        // TODO implement according to SOLR standard
+        NamedList<?> map1 = stats1.getFieldCacheStats(measure, new String[] { dimension });
         if (map1 == null || map1.size() <= 0) {
           // empty do nothing
           return;
         }
-        Map<String,Double> matrix1 = map1.get(dimension);
+        Map<String,Double> matrix1 = new HashMap<String,Double>(); // TODO map1.get(dimension);
         stopwatch.stop();
         timers.put("q1.stats.ms", stopwatch.getTime());
         stopwatch.reset();
         
         // ====== stats for 2nd
         stopwatch.start();
-        SimpleStats stats2 = new SimpleStats(rb.req.getSearcher(), 
-                                            set2, 
-                                            new String[] { measure }, 
-                                            fieldFacets,
-                                            params.getBool(ShardParams.IS_SHARD, false), 
-                                            true);
-        Map<String,Map<String,Double>> map2 = stats2.getFieldCacheStats(measure, new String[] { dimension }).getNumericFacetStats();
+        SimpleStats stats2 = new SimpleStats(rb.req, set2, xp);
+        NamedList<?> map2 = stats2.getFieldCacheStats(measure, new String[] { dimension });
         if (map2 == null || map2.size() <= 0) {
           // empty do nothing
           return;
         }
-        Map<String,Double> matrix2 = map2.get(dimension);
+        Map<String,Double> matrix2 = new HashMap<String,Double>(); // TODO map2.get(dimension);
         stopwatch.stop();
         timers.put("q2.stats.ms", stopwatch.getTime());
         stopwatch.reset();
         
         // ====== ratios
         stopwatch.start();
-        OpenBitSet ratios = filter(matrix1, matrix2, min, max);
+        OpenBitSet ratios = new OpenBitSet();// TODO filter(matrix1, matrix2, min, max);
         stopwatch.stop();
         timers.put("ratio.ms", stopwatch.getTime());
         stopwatch.reset();

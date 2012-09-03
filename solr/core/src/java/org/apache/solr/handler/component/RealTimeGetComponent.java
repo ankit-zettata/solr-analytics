@@ -255,6 +255,7 @@ public class RealTimeGetComponent extends SearchComponent
       SchemaField sf = schema.getFieldOrNull(f.name());
       Object val = null;
       if (sf != null) {
+        if (!sf.stored() || schema.isCopyFieldTarget(sf)) continue;
         val = sf.getType().toObject(f);   // object or external string?
       } else {
         val = f.stringValue();
@@ -277,6 +278,10 @@ public class RealTimeGetComponent extends SearchComponent
       Object existing = out.get(f.name());
       if (existing == null) {
         SchemaField sf = schema.getFieldOrNull(f.name());
+
+        // don't return copyField targets
+        if (sf != null && schema.isCopyFieldTarget(sf)) continue;
+
         if (sf != null && sf.multiValued()) {
           List<Object> vals = new ArrayList<Object>();
           vals.add( f );
@@ -301,7 +306,7 @@ public class RealTimeGetComponent extends SearchComponent
     // copy the stored fields only
     Document out = new Document();
     for (IndexableField f : doc.getFields()) {
-      if (f.fieldType().stored()) {
+      if (f.fieldType().stored() ) {
         out.add(f);
       }
     }
@@ -322,7 +327,7 @@ public class RealTimeGetComponent extends SearchComponent
   public int createSubRequests(ResponseBuilder rb) throws IOException {
     SolrParams params = rb.req.getParams();
     String id1[] = params.getParams("id");
-    String ids[] = params.getParams(ShardParams.IDS);
+    String ids[] = params.getParams("ids");
 
     if (id1 == null && ids == null) {
       return ResponseBuilder.STAGE_DONE;
@@ -352,14 +357,14 @@ public class RealTimeGetComponent extends SearchComponent
 
       String collection = cloudDescriptor.getCollectionName();
 
-      CloudState cloudState = zkController.getCloudState();
+      ClusterState clusterState = zkController.getClusterState();
       
       Map<String, List<String>> shardToId = new HashMap<String, List<String>>();
       for (String id : allIds) {
         BytesRef br = new BytesRef();
         sf.getType().readableToIndexed(id, br);
         int hash = Hash.murmurhash3_x86_32(br.bytes, br.offset, br.length, 0);
-        String shard = cloudState.getShard(hash,  collection);
+        String shard = clusterState.getShard(hash,  collection);
 
         List<String> idsForShard = shardToId.get(shard);
         if (idsForShard == null) {
@@ -381,8 +386,8 @@ public class RealTimeGetComponent extends SearchComponent
         sreq.actualShards = sreq.shards;
         sreq.params = new ModifiableSolrParams();
         sreq.params.set(ShardParams.SHARDS_QT,"/get");      // TODO: how to avoid hardcoding this and hit the same handler?
-        sreq.params.set(ShardParams.DISTRIB,false);
-        sreq.params.set(ShardParams.IDS, shardIdList);
+        sreq.params.set("distrib",false);
+        sreq.params.set("ids", shardIdList);
 
         rb.addRequest(this, sreq);
       }      
@@ -395,8 +400,8 @@ public class RealTimeGetComponent extends SearchComponent
       sreq.actualShards = sreq.shards;
       sreq.params = new ModifiableSolrParams();
       sreq.params.set(ShardParams.SHARDS_QT,"/get");      // TODO: how to avoid hardcoding this and hit the same handler?
-      sreq.params.set(ShardParams.DISTRIB,false);
-      sreq.params.set(ShardParams.IDS, shardIdList);
+      sreq.params.set("distrib",false);
+      sreq.params.set("ids", shardIdList);
 
       rb.addRequest(this, sreq);
     }
@@ -450,7 +455,7 @@ public class RealTimeGetComponent extends SearchComponent
       }
     }
 
-    if (docList.size() <= 1 && rb.req.getParams().getParams(ShardParams.IDS)==null) {
+    if (docList.size() <= 1 && rb.req.getParams().getParams("ids")==null) {
       // if the doc was not found, then use a value of null.
       rb.rsp.add("doc", docList.size() > 0 ? docList.get(0) : null);
     } else {

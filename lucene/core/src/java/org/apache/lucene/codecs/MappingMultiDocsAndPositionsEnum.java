@@ -123,16 +123,7 @@ public final class MappingMultiDocsAndPositionsEnum extends DocsAndPositionsEnum
   
   @Override
   public BytesRef getPayload() throws IOException {
-    BytesRef payload = current.getPayload();
-    if (mergeState.currentPayloadProcessor[upto] != null) {
-      mergeState.currentPayloadProcessor[upto].processPayload(payload);
-    }
-    return payload;
-  }
-
-  @Override
-  public boolean hasPayload() {
-    return current.hasPayload();
+    return current.getPayload();
   }
 }
 

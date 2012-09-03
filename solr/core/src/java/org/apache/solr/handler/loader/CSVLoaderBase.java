@@ -367,9 +367,8 @@ abstract class CSVLoaderBase extends ContentStreamLoader {
         addDoc(line,vals);
       }
     } finally{
-      if (reader != null) {
-        IOUtils.closeQuietly(reader);
-      }
+      stream.close(); // notify we need to close any open readers
+      IOUtils.closeQuietly(reader);
     }
   }
 

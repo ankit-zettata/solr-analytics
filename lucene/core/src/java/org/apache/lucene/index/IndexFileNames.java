@@ -17,6 +17,8 @@ package org.apache.lucene.index;
  * limitations under the License.
  */
 
+import java.util.regex.Pattern;
+
 import org.apache.lucene.codecs.Codec;
 
 // TODO: put all files under codec and remove all the static extensions here
@@ -38,6 +40,9 @@ import org.apache.lucene.codecs.Codec;
  */
 
 public final class IndexFileNames {
+  
+  /** No instance */
+  private IndexFileNames() {}
 
   /** Name of the index segment file */
   public static final String SEGMENTS = "segments";
@@ -182,6 +187,10 @@ public final class IndexFileNames {
     return filename;
   }
   
+  /**
+   * Removes the extension (anything after the first '.'),
+   * otherwise returns the original filename.
+   */
   public static String stripExtension(String filename) {
     int idx = filename.indexOf('.');
     if (idx != -1) {
@@ -189,4 +198,8 @@ public final class IndexFileNames {
     }
     return filename;
   }  
+
+  // All files created by codecs much match this pattern (we
+  // check this in SegmentInfo.java):
+  static final Pattern CODEC_FILE_PATTERN = Pattern.compile("_[a-z0-9]+(_.*)?\\..*");
 }

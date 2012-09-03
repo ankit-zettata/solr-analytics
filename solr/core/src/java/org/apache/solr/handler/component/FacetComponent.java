@@ -72,17 +72,19 @@ public class FacetComponent extends SearchComponent
 
   static final String PIVOT_KEY = "facet_pivot";
   
-  protected PivotFacetHelper pivotHelper;
-  
+  PivotFacetHelper pivotHelper;
+
   protected NamedListHelper namedListHelper = NamedListHelper.INSTANCE;
   
   @Override
-  public void init(NamedList args) {
+  public void init( NamedList args )
+  {
     pivotHelper = new PivotFacetHelper(); // Maybe this would configurable?
   }
   
   @Override
-  public void prepare(ResponseBuilder rb) throws IOException {
+  public void prepare(ResponseBuilder rb) throws IOException
+  {
     if (rb.req.getParams().getBool(FacetParams.FACET, false)) {
       rb.setNeedDocSet(true);
       rb.doFacets = true;
@@ -92,21 +94,23 @@ public class FacetComponent extends SearchComponent
   
   /**
    * Actually run the query
-   * 
    * @param rb
    */
   @Override
-  public void process(ResponseBuilder rb) throws IOException {
+  public void process(ResponseBuilder rb) throws IOException
+  {
     if (rb.doFacets) {
       SolrParams params = rb.req.getParams();
-      SimpleFacets f = new SimpleFacets(rb.req, rb.getResults().docSet, params,
-          rb);
+      SimpleFacets f = new SimpleFacets(rb.req,
+              rb.getResults().docSet,
+              params,
+              rb );
       
       NamedList<Object> counts = f.getFacetCounts();
       String[] pivots = params.getParams(FacetParams.FACET_PIVOT);
-      if (pivots != null && pivots.length > 0) {
+      if( pivots != null && pivots.length > 0 ) {
         NamedList v = pivotHelper.process(rb, params, pivots);
-        if (v != null) {
+        if( v != null ) {
           counts.add(PIVOT_KEY, v);
         }
       }
@@ -125,14 +129,15 @@ public class FacetComponent extends SearchComponent
     }
     
     if (rb.stage == ResponseBuilder.STAGE_GET_FIELDS) {
-      // overlap facet refinement requests (those shards that we need a count
-      // for
+      // overlap facet refinement requests (those shards that we need a count for
       // particular facet values from), where possible, with
       // the requests to get fields (because we know that is the
       // only other required phase).
       // We do this in distributedProcess so we can look at all of the
       // requests in the outgoing queue at once.
-      
+
+
+
       for (int shardNum = 0; shardNum < rb.shards.length; shardNum++) {
         List<String> refinements = null;
         
@@ -141,8 +146,7 @@ public class FacetComponent extends SearchComponent
           List<String> refList = dff._toRefine[shardNum];
           if (refList == null || refList.size() == 0) continue;
           
-          String key = dff.getKey(); // reuse the same key that was used for the
-          // main facet
+          String key = dff.getKey();  // reuse the same key that was used for the main facet
           String termsKey = key + "__terms";
           String termsVal = StrUtils.join(refList, ',');
           
@@ -152,8 +156,7 @@ public class FacetComponent extends SearchComponent
           
           String termsKeyEncoded = QueryParsing.encodeLocalParamVal(termsKey);
           if (dff.localParams != null) {
-            facetCommand = commandPrefix + termsKeyEncoded + " "
-                + dff.facetStr.substring(2);
+            facetCommand = commandPrefix+termsKeyEncoded + " " + dff.facetStr.substring(2);
           } else {
             facetCommand = commandPrefix + termsKeyEncoded + '}' + dff.field;
           }
@@ -169,26 +172,27 @@ public class FacetComponent extends SearchComponent
         
         if (refinements == null) continue;
         
+
         String shard = rb.shards[shardNum];
         ShardRequest refine = null;
         boolean newRequest = false;
         
         // try to find a request that is already going out to that shard.
-        // If nshards becomes to great, we way want to move to hashing for
-        // better
+        // If nshards becomes to great, we way want to move to hashing for better
         // scalability.
         for (ShardRequest sreq : rb.outgoing) {
-          if ((sreq.purpose & ShardRequest.PURPOSE_GET_FIELDS) != 0
-              && sreq.shards != null && sreq.shards.length == 1
-              && sreq.shards[0].equals(shard)) {
+          if ((sreq.purpose & ShardRequest.PURPOSE_GET_FIELDS)!=0
+                  && sreq.shards != null
+                  && sreq.shards.length==1
+                  && sreq.shards[0].equals(shard))
+          {
             refine = sreq;
             break;
           }
         }
         
         if (refine == null) {
-          // we didn't find any other suitable requests going out to that shard,
-          // so
+          // we didn't find any other suitable requests going out to that shard, so
           // create one ourselves.
           newRequest = true;
           refine = new ShardRequest();
@@ -217,15 +221,13 @@ public class FacetComponent extends SearchComponent
           rb.addRequest(this, refine);
         }
       }      
-      // Distributed facet_statistics go here?
     }
     
     return ResponseBuilder.STAGE_DONE;
   }
   
   @Override
-  public void modifyRequest(ResponseBuilder rb, SearchComponent who,
-      ShardRequest sreq) {
+  public void modifyRequest(ResponseBuilder rb, SearchComponent who, ShardRequest sreq) {
     if (!rb.doFacets) return;
     
     if ((sreq.purpose & ShardRequest.PURPOSE_GET_TOP_IDS) != 0) {
@@ -258,50 +260,37 @@ public class FacetComponent extends SearchComponent
           if (dff.limit > 0) {
             // set the initial limit higher to increase accuracy
             dff.initialLimit = (int) (dff.initialLimit * 1.5) + 10;
-            dff.initialMincount = 0; // TODO: we could change this to 1, but
-            // would then need more refinement for
-            // small facet result sets?
-          } else {
-            // if limit==-1, then no need to artificially lower mincount to 0 if
-            // it's 1
+              dff.initialMincount = 0;      // TODO: we could change this to 1, but would then need more refinement for small facet result sets?
+            } else {
+              // if limit==-1, then no need to artificially lower mincount to 0 if it's 1
             dff.initialMincount = Math.min(dff.minCount, 1);
           }
-        } else {
-          // we're sorting by index order.
-          // if minCount==0, we should always be able to get accurate results
-          // w/o over-requesting or refining
-          // if minCount==1, we should be able to get accurate results w/o
-          // over-requesting, but we'll need to refine
-          // if minCount==n (>1), we can set the initialMincount to
-          // minCount/nShards, rounded up.
-          // For example, we know that if minCount=10 and we have 3 shards, then
-          // at least one shard must have a count of 4 for the term
-          // For the minCount>1 case, we can generate too short of a list (miss
-          // terms at the end of the list) unless limit==-1
-          // For example: each shard could produce a list of top 10, but some of
-          // those could fail to make it into the combined list (i.e.
-          // we needed to go beyond the top 10 to generate the top 10 combined).
-          // Overrequesting can help a little here, but not as
-          // much as when sorting by count.
-          if (dff.minCount <= 1) {
-            dff.initialMincount = dff.minCount;
           } else {
-            dff.initialMincount = (int) Math.ceil((double) dff.minCount
-                / rb.slices.length);
-            // dff.initialMincount = 1;
+            // we're sorting by index order.
+            // if minCount==0, we should always be able to get accurate results w/o over-requesting or refining
+            // if minCount==1, we should be able to get accurate results w/o over-requesting, but we'll need to refine
+            // if minCount==n (>1), we can set the initialMincount to minCount/nShards, rounded up.
+            // For example, we know that if minCount=10 and we have 3 shards, then at least one shard must have a count of 4 for the term
+            // For the minCount>1 case, we can generate too short of a list (miss terms at the end of the list) unless limit==-1
+            // For example: each shard could produce a list of top 10, but some of those could fail to make it into the combined list (i.e.
+            //   we needed to go beyond the top 10 to generate the top 10 combined).  Overrequesting can help a little here, but not as
+            //   much as when sorting by count.
+            if (dff.minCount <= 1) {
+              dff.initialMincount = dff.minCount;
+            } else {
+              dff.initialMincount = (int)Math.ceil((double)dff.minCount / rb.slices.length);
+              // dff.initialMincount = 1;
+            }
           }
-        }
-        
-        if (dff.initialMincount != 0) {
-          sreq.params.set(paramStart + FacetParams.FACET_MINCOUNT,
-              dff.initialMincount);
-        }
-        
-        // Currently this is for testing only and allows overriding of the
-        // facet.limit set to the shards
-        dff.initialLimit = rb.req.getParams().getInt("facet.shard.limit",
-            dff.initialLimit);
-        
+
+          if (dff.initialMincount != 0) {
+            sreq.params.set(paramStart + FacetParams.FACET_MINCOUNT, dff.initialMincount);
+          }
+
+          // Currently this is for testing only and allows overriding of the
+          // facet.limit set to the shards
+          dff.initialLimit = rb.req.getParams().getInt("facet.shard.limit", dff.initialLimit);
+
         sreq.params.set(paramStart + FacetParams.FACET_LIMIT, dff.initialLimit);
       }
     } else {
@@ -321,7 +310,10 @@ public class FacetComponent extends SearchComponent
       refineFacets(rb, sreq);
     }
   }
-  
+
+
+
+
   private void countFacets(ResponseBuilder rb, ShardRequest sreq) {
     FacetInfo fi = rb._facetInfo;    
     SimpleOrderedMap<Map<Object,NamedList<Object>>> pivotFacetsMap = null;
@@ -332,10 +324,18 @@ public class FacetComponent extends SearchComponent
     SimpleOrderedMap<List<Integer>> facetLimitIgnoreIndexsMap = null;    
     boolean sortPivotsByCount = true;
     
-    for (ShardResponse srsp : sreq.responses) {
+    for (ShardResponse srsp: sreq.responses) {
       int shardNum = rb.getShardNum(srsp.getShard());
-      NamedList facet_counts = (NamedList) srsp.getSolrResponse().getResponse()
-          .get("facet_counts");
+      NamedList facet_counts = null;
+      try {
+        facet_counts = (NamedList)srsp.getSolrResponse().getResponse().get("facet_counts");
+      }
+      catch(Exception ex) {
+        if(rb.req.getParams().getBool(ShardParams.SHARDS_TOLERANT, false)) {
+          continue; // looks like a shard did not return anything
+        }
+        throw new SolrException(ErrorCode.SERVER_ERROR, "Unable to read facet info for shard: "+srsp.getShard(), ex);
+      }
       
       // handle facet queries
       NamedList facet_queries = (NamedList) facet_counts.get("facet_queries");
@@ -353,8 +353,7 @@ public class FacetComponent extends SearchComponent
       
       if (facet_fields != null) {
         for (DistribFieldFacet dff : fi.facets.values()) {
-          dff.add(shardNum, (NamedList) facet_fields.get(dff.getKey()),
-              dff.initialLimit);
+          dff.add(shardNum, (NamedList)facet_fields.get(dff.getKey()), dff.initialLimit);
         }
       }
       
@@ -364,8 +363,9 @@ public class FacetComponent extends SearchComponent
       // facet_dates as the basis for subsequent shards' data to be merged.
       // (the "NOW" param should ensure consistency)
       @SuppressWarnings("unchecked")
-      SimpleOrderedMap<SimpleOrderedMap<Object>> facet_dates = (SimpleOrderedMap<SimpleOrderedMap<Object>>) facet_counts
-          .get("facet_dates");
+      SimpleOrderedMap<SimpleOrderedMap<Object>> facet_dates = 
+        (SimpleOrderedMap<SimpleOrderedMap<Object>>) 
+        facet_counts.get("facet_dates");
       
       if (facet_dates != null) {
         
@@ -379,13 +379,16 @@ public class FacetComponent extends SearchComponent
           } else {
             // not the first time, merge current field
             
-            SimpleOrderedMap<Object> shardFieldValues = entry.getValue();
-            SimpleOrderedMap<Object> existFieldValues = fi.dateFacets
-                .get(field);
+            SimpleOrderedMap<Object> shardFieldValues 
+              = entry.getValue();
+            SimpleOrderedMap<Object> existFieldValues 
+              = fi.dateFacets.get(field);
             
             for (Map.Entry<String,Object> existPair : existFieldValues) {
               final String key = existPair.getKey();
-              if (key.equals("gap") || key.equals("end") || key.equals("start")) {
+              if (key.equals("gap") || 
+                  key.equals("end") || 
+                  key.equals("start")) {
                 // we can skip these, must all be the same across shards
                 continue;
               }
@@ -405,8 +408,9 @@ public class FacetComponent extends SearchComponent
       // The implementation below uses the first encountered shard's
       // facet_ranges as the basis for subsequent shards' data to be merged.
       @SuppressWarnings("unchecked")
-      SimpleOrderedMap<SimpleOrderedMap<Object>> facet_ranges = (SimpleOrderedMap<SimpleOrderedMap<Object>>) facet_counts
-          .get("facet_ranges");
+      SimpleOrderedMap<SimpleOrderedMap<Object>> facet_ranges = 
+        (SimpleOrderedMap<SimpleOrderedMap<Object>>) 
+        facet_counts.get("facet_ranges");
       
       if (facet_ranges != null) {
         
@@ -421,12 +425,12 @@ public class FacetComponent extends SearchComponent
             // not the first time, merge current field counts
             
             @SuppressWarnings("unchecked")
-            NamedList<Integer> shardFieldValues = (NamedList<Integer>) entry
-                .getValue().get("counts");
-            
+            NamedList<Integer> shardFieldValues 
+              = (NamedList<Integer>) entry.getValue().get("counts");
+
             @SuppressWarnings("unchecked")
-            NamedList<Integer> existFieldValues = (NamedList<Integer>) fi.rangeFacets
-                .get(field).get("counts");
+            NamedList<Integer> existFieldValues 
+              = (NamedList<Integer>) fi.rangeFacets.get(field).get("counts");
             
             for (Map.Entry<String,Integer> existPair : existFieldValues) {
               final String key = existPair.getKey();
@@ -565,7 +569,6 @@ public class FacetComponent extends SearchComponent
       fi.pivotFacets = pivotHelper.convertPivotMapsToList(pivotFacetsMap,
           limitInfo, sortPivotsByCount);
     }    
-    
     //
     // This code currently assumes that there will be only a single
     // request ((with responses from all shards) sent out to get facets...
@@ -576,18 +579,15 @@ public class FacetComponent extends SearchComponent
       // no need to check these facets for refinement
       if (dff.initialLimit <= 0 && dff.initialMincount == 0) continue;
       
-      // only other case where index-sort doesn't need refinement is if
-      // minCount==0
+      // only other case where index-sort doesn't need refinement is if minCount==0
       if (dff.minCount == 0 && dff.sort.equals(FacetParams.FACET_SORT_INDEX)) continue;
-      
-      @SuppressWarnings("unchecked")
-      // generic array's are annoying
+
+      @SuppressWarnings("unchecked") // generic array's are annoying
       List<String>[] tmp = (List<String>[]) new List[rb.shards.length];
       dff._toRefine = tmp;
       
       ShardFacetCount[] counts = dff.getCountSorted();
-      int ntop = Math.min(counts.length, dff.limit >= 0 ? dff.offset
-          + dff.limit : Integer.MAX_VALUE);
+      int ntop = Math.min(counts.length, dff.limit >= 0 ? dff.offset + dff.limit : Integer.MAX_VALUE);
       long smallestCount = counts.length == 0 ? 0 : counts[ntop - 1].count;
       
       for (int i = 0; i < counts.length; i++) {
@@ -621,7 +621,7 @@ public class FacetComponent extends SearchComponent
           // add a query for each shard missing the term that needs refinement
           for (int shardNum = 0; shardNum < rb.shards.length; shardNum++) {
             OpenBitSet obs = dff.counted[shardNum];
-            if (!obs.get(sfc.termNum) && dff.maxPossible(sfc, shardNum) > 0) {
+            if(obs!=null && !obs.get(sfc.termNum) && dff.maxPossible(sfc,shardNum)>0) {
               dff.needRefinements = true;
               List<String> lst = dff._toRefine[shardNum];
               if (lst == null) {
@@ -829,12 +829,10 @@ private void refineFacets(ResponseBuilder rb, ShardRequest sreq) {
     
     for (ShardResponse srsp : sreq.responses) {
       // int shardNum = rb.getShardNum(srsp.shard);
-      NamedList facet_counts = (NamedList) srsp.getSolrResponse().getResponse()
-          .get("facet_counts");
+      NamedList facet_counts = (NamedList)srsp.getSolrResponse().getResponse().get("facet_counts");
       NamedList facet_fields = (NamedList) facet_counts.get("facet_fields");
       
-      if (facet_fields == null) continue; // this can happen when there's an
-                                          // exception
+      if (facet_fields == null) continue; // this can happen when there's an exception      
       
       for (int i = 0; i < facet_fields.size(); i++) {
         String key = facet_fields.getName(i);
@@ -868,6 +866,7 @@ private void refineFacets(ResponseBuilder rb, ShardRequest sreq) {
     // wait until STAGE_GET_FIELDS
     // so that "result" is already stored in the response (for aesthetics)
     
+
     FacetInfo fi = rb._facetInfo;
     
     NamedList<Object> facet_counts = new SimpleOrderedMap<Object>();
@@ -882,9 +881,7 @@ private void refineFacets(ResponseBuilder rb, ShardRequest sreq) {
     facet_counts.add("facet_fields", facet_fields);
     
     for (DistribFieldFacet dff : fi.facets.values()) {
-      NamedList<Object> fieldCounts = new NamedList<Object>(); // order is more
-      // important for
-      // facets
+      NamedList<Object> fieldCounts = new NamedList<Object>(); // order is more important for facets
       facet_fields.add(dff.getKey(), fieldCounts);
       
       ShardFacetCount[] counts;
@@ -901,8 +898,7 @@ private void refineFacets(ResponseBuilder rb, ShardRequest sreq) {
       }
       
       if (countSorted) {
-        int end = dff.limit < 0 ? counts.length : Math.min(dff.offset
-            + dff.limit, counts.length);
+        int end = dff.limit < 0 ? counts.length : Math.min(dff.offset + dff.limit, counts.length);
         for (int i = dff.offset; i < end; i++) {
           if (counts[i].count < dff.minCount) {
             break;
@@ -1108,16 +1104,14 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
     String facetType; // facet.field, facet.query, etc (make enum?)
     String facetStr; // original parameter value of facetStr
     String facetOn; // the field or query, absent localParams if appropriate
-    private String key; // label in the response for the result... "foo" for
-    // {!key=foo}myfield
+    private String key; // label in the response for the result... "foo" for {!key=foo}myfield
     SolrParams localParams; // any local params for the facet
     
     public FacetBase(ResponseBuilder rb, String facetType, String facetStr) {
       this.facetType = facetType;
       this.facetStr = facetStr;
       try {
-        this.localParams = QueryParsing.getLocalParams(facetStr,
-            rb.req.getParams());
+        this.localParams = QueryParsing.getLocalParams(facetStr, rb.req.getParams());
       } catch (ParseException e) {
         throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, e);
       }
@@ -1136,15 +1130,10 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
     }
     
     /** returns the key in the response that this facet will be under */
-    public String getKey() {
-      return key;
-    }
-    
-    public String getType() {
-      return facetType;
-    }
+    public String getKey() { return key; }
+    public String getType() { return facetType; }
   }
-  
+
   /**
    * <b>This API is experimental and subject to change</b>
    */
@@ -1160,8 +1149,7 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
    * <b>This API is experimental and subject to change</b>
    */
   public static class FieldFacet extends FacetBase {
-    public String field; // the field to facet on... "myfield" for
-    // {!key=foo}myfield
+    public String field;     // the field to facet on... "myfield" for {!key=foo}myfield
     public FieldType ftype;
     public int offset;
     public int limit;
@@ -1189,12 +1177,9 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
         // current default is to include zeros.
       }
       this.minCount = mincount;
-      this.missing = params.getFieldBool(field, FacetParams.FACET_MISSING,
-          false);
+      this.missing = params.getFieldBool(field, FacetParams.FACET_MISSING, false);
       // default to sorting by count if there is a limit.
-      this.sort = params.getFieldParam(field, FacetParams.FACET_SORT,
-          limit > 0 ? FacetParams.FACET_SORT_COUNT
-              : FacetParams.FACET_SORT_INDEX);
+      this.sort = params.getFieldParam(field, FacetParams.FACET_SORT, limit>0 ? FacetParams.FACET_SORT_COUNT : FacetParams.FACET_SORT_INDEX);
       if (this.sort.equals(FacetParams.FACET_SORT_COUNT_LEGACY)) {
         this.sort = FacetParams.FACET_SORT_COUNT;
       } else if (this.sort.equals(FacetParams.FACET_SORT_INDEX_LEGACY)) {
@@ -1208,20 +1193,16 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
    * <b>This API is experimental and subject to change</b>
    */
   public static class DistribFieldFacet extends FieldFacet {
-    public List<String>[] _toRefine; // a List<String> of refinements needed,
-    // one for each shard.
+    public List<String>[] _toRefine; // a List<String> of refinements needed, one for each shard.
     
     // SchemaField sf; // currently unneeded
     
     // the max possible count for a term appearing on no list
     public long missingMaxPossible;
-    // the max possible count for a missing term for each shard (indexed by
-    // shardNum)
+    // the max possible count for a missing term for each shard (indexed by shardNum)
     public long[] missingMax;
-    public OpenBitSet[] counted; // a bitset for each shard, keeping track of
-    // which terms seen
-    public HashMap<String,ShardFacetCount> counts = new HashMap<String,ShardFacetCount>(
-        128);
+    public OpenBitSet[] counted; // a bitset for each shard, keeping track of which terms seen
+    public HashMap<String,ShardFacetCount> counts = new HashMap<String,ShardFacetCount>(128);
     public int termNum;
     
     public int initialLimit; // how many terms requested in first phase
@@ -1265,8 +1246,7 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
         }
       }
       
-      // the largest possible missing term is initialMincount if we received
-      // less
+      // the largest possible missing term is initialMincount if we received less
       // than the number requested.
       if (numRequested < 0 || numRequested != 0 && numReceived < numRequested) {
         last = initialMincount;
@@ -1278,8 +1258,7 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
     }
     
     public ShardFacetCount[] getLexSorted() {
-      ShardFacetCount[] arr = counts.values().toArray(
-          new ShardFacetCount[counts.size()]);
+      ShardFacetCount[] arr = counts.values().toArray(new ShardFacetCount[counts.size()]);
       Arrays.sort(arr, new Comparator<ShardFacetCount>() {
         public int compare(ShardFacetCount o1, ShardFacetCount o2) {
           return o1.indexed.compareTo(o2.indexed);
@@ -1290,8 +1269,7 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
     }
     
     public ShardFacetCount[] getCountSorted() {
-      ShardFacetCount[] arr = counts.values().toArray(
-          new ShardFacetCount[counts.size()]);
+      ShardFacetCount[] arr = counts.values().toArray(new ShardFacetCount[counts.size()]);
       Arrays.sort(arr, new Comparator<ShardFacetCount>() {
         public int compare(ShardFacetCount o1, ShardFacetCount o2) {
           if (o2.count < o1.count) return -1;
@@ -1303,8 +1281,7 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
       return arr;
     }
     
-    // returns the max possible value this ShardFacetCount could have for this
-    // shard
+    // returns the max possible value this ShardFacetCount could have for this shard
     // (assumes the shard did not report a count for this value)
     long maxPossible(ShardFacetCount sfc, int shardNum) {
       return missingMax[shardNum];
@@ -1318,8 +1295,7 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
    */
   public static class ShardFacetCount {
     public String name;
-    public String indexed; // the indexed form of the name... used for
-    // comparisons.
+    public String indexed;  // the indexed form of the name... used for comparisons.
     public long count;
     public int termNum; // term number starting at 0 (used in bit arrays)
     

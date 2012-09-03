@@ -121,12 +121,10 @@ public final class ParallelAtomicReader extends AtomicReader {
     for (final AtomicReader reader : this.parallelReaders) {
       final Fields readerFields = reader.fields();
       if (readerFields != null) {
-        final FieldsEnum it = readerFields.iterator();
-        String name;
-        while ((name = it.next()) != null) {
+        for (String field : readerFields) {
           // only add if the reader responsible for that field name is the current:
-          if (fieldToReader.get(name) == reader) {
-            this.fields.addField(name, it.terms());
+          if (fieldToReader.get(field) == reader) {
+            this.fields.addField(field, readerFields.terms(field));
           }
         }
       }
@@ -151,33 +149,6 @@ public final class ParallelAtomicReader extends AtomicReader {
     return buffer.append(')').toString();
   }
   
-  private final class ParallelFieldsEnum extends FieldsEnum {
-    private String currentField;
-    private final Iterator<String> keys;
-    private final ParallelFields fields;
-    
-    ParallelFieldsEnum(ParallelFields fields) {
-      this.fields = fields;
-      keys = fields.fields.keySet().iterator();
-    }
-    
-    @Override
-    public String next() {
-      if (keys.hasNext()) {
-        currentField = keys.next();
-      } else {
-        currentField = null;
-      }
-      return currentField;
-    }
-    
-    @Override
-    public Terms terms() {
-      return fields.terms(currentField);
-    }
-    
-  }
-  
   // Single instance of this, per ParallelReader instance
   private final class ParallelFields extends Fields {
     final Map<String,Terms> fields = new TreeMap<String,Terms>();
@@ -190,8 +161,8 @@ public final class ParallelAtomicReader extends AtomicReader {
     }
     
     @Override
-    public FieldsEnum iterator() {
-      return new ParallelFieldsEnum(this);
+    public Iterator<String> iterator() {
+      return Collections.unmodifiableSet(fields.keySet()).iterator();
     }
     
     @Override

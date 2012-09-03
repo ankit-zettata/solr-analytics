@@ -138,16 +138,13 @@ public final class MultiDocsAndPositionsEnum extends DocsAndPositionsEnum {
   }
 
   @Override
-  public boolean hasPayload() {
-    return current.hasPayload();
-  }
-
-  @Override
   public BytesRef getPayload() throws IOException {
     return current.getPayload();
   }
 
   // TODO: implement bulk read more efficiently than super
+  /** Holds a {@link DocsAndPositionsEnum} along with the
+   *  corresponding {@link ReaderSlice}. */
   public final static class EnumWithSlice {
     public DocsAndPositionsEnum docsAndPositionsEnum;
     public ReaderSlice slice;

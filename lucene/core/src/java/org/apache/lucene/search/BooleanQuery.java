@@ -213,7 +213,11 @@ public class BooleanQuery extends Query implements Iterable<BooleanClause> {
     }
 
     public float coord(int overlap, int maxOverlap) {
-      return similarity.coord(overlap, maxOverlap);
+      // LUCENE-4300: in most cases of maxOverlap=1, BQ rewrites itself away,
+      // so coord() is not applied. But when BQ cannot optimize itself away
+      // for a single clause (minNrShouldMatch, prohibited clauses, etc), its
+      // important not to apply coord(1,1) for consistency, it might not be 1.0F
+      return maxOverlap == 1 ? 1F : similarity.coord(overlap, maxOverlap);
     }
 
     @Override
@@ -361,11 +365,9 @@ public class BooleanQuery extends Query implements Iterable<BooleanClause> {
         final Scorer scorer = weight.scorer(context, true, false, acceptDocs);
         if (scorer == null) {
           return null;
-        }
-        if (scorer instanceof TermScorer) {
-          docsAndFreqs[i] = new DocsAndFreqs((TermScorer) scorer);
         } else {
-          docsAndFreqs[i] = new DocsAndFreqs((MatchOnlyTermScorer) scorer);
+          assert scorer instanceof TermScorer;
+          docsAndFreqs[i] = new DocsAndFreqs((TermScorer) scorer);
         }
       }
       return new ConjunctionTermScorer(this, disableCoord ? 1.0f : coord(

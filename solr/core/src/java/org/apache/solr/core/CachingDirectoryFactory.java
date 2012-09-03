@@ -105,7 +105,11 @@ public abstract class CachingDirectoryFactory extends DirectoryFactory {
   public void close() throws IOException {
     synchronized (this) {
       for (CacheValue val : byDirectoryCache.values()) {
-        val.directory.close();
+        try {
+          val.directory.close();
+        } catch (Throwable t) {
+          SolrException.log(log, "Error closing directory", t);
+        }
       }
       byDirectoryCache.clear();
       byPathCache.clear();
@@ -121,6 +125,7 @@ public abstract class CachingDirectoryFactory extends DirectoryFactory {
       }
       cacheValue.refCnt--;
       if (cacheValue.refCnt == 0 && cacheValue.doneWithDir) {
+        log.info("Closing directory:" + cacheValue.path);
         directory.close();
         byDirectoryCache.remove(directory);
         byPathCache.remove(cacheValue.path);
@@ -190,6 +195,7 @@ public abstract class CachingDirectoryFactory extends DirectoryFactory {
         
         byDirectoryCache.put(directory, newCacheValue);
         byPathCache.put(fullPath, newCacheValue);
+        log.info("return new directory for " + fullPath + " forceNew:" + forceNew);
       } else {
         cacheValue.refCnt++;
       }

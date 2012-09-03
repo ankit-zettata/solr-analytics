@@ -77,17 +77,4 @@ public interface StatsValues {
    * @return NamedList representation of the current values
    */
   NamedList<?> getStatsValues();
-  
-  /**
-   * Gets only the facet values.
-   * @return
-   */
-  Map<String, Map<String,Double>> getNumericFacetStats();
-  
-  /**
-   * For numeric types runs the sum value for faceting.
-   * 
-   * @return
-   */
-  Double getSum();
 }

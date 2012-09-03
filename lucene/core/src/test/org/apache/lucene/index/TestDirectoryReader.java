@@ -97,13 +97,13 @@ public class TestDirectoryReader extends LuceneTestCase {
                                  te2.term(),
                                  MultiFields.getLiveDocs(mr2),
                                  null,
-                                 false);
+                                 0);
 
     TermsEnum te3 = MultiFields.getTerms(mr3, "body").iterator(null);
     te3.seekCeil(new BytesRef("wow"));
     td = _TestUtil.docs(random(), te3, MultiFields.getLiveDocs(mr3),
                         td,
-                        false);
+                        0);
     
     int ret = 0;
 
@@ -355,7 +355,7 @@ void assertTermDocsCount(String msg,
                                   new BytesRef(term.text()),
                                   MultiFields.getLiveDocs(reader),
                                   null,
-                                  false);
+                                  0);
   int count = 0;
   if (tdocs != null) {
     while(tdocs.nextDoc()!= DocIdSetIterator.NO_MORE_DOCS) {
@@ -549,7 +549,7 @@ public void testFilesOpenClose() throws IOException {
     assertEquals("IndexReaders have different values for numDocs.", index1.numDocs(), index2.numDocs());
     assertEquals("IndexReaders have different values for maxDoc.", index1.maxDoc(), index2.maxDoc());
     assertEquals("Only one IndexReader has deletions.", index1.hasDeletions(), index2.hasDeletions());
-    assertEquals("Single segment test differs.", index1.getSequentialSubReaders().size() == 1, index2.getSequentialSubReaders().size() == 1);
+    assertEquals("Single segment test differs.", index1.leaves().size() == 1, index2.leaves().size() == 1);
     
     // check field names
     FieldInfos fieldInfos1 = MultiFields.getMergedFieldInfos(index1);
@@ -612,27 +612,27 @@ public void testFilesOpenClose() throws IOException {
     }
     
     // check dictionary and posting lists
-    FieldsEnum fenum1 = MultiFields.getFields(index1).iterator();
-    FieldsEnum fenum2 = MultiFields.getFields(index1).iterator();
-    String field1 = null;
+    Fields fields1 = MultiFields.getFields(index1);
+    Fields fields2 = MultiFields.getFields(index2);
+    Iterator<String> fenum2 = fields2.iterator();
     Bits liveDocs = MultiFields.getLiveDocs(index1);
-    while((field1=fenum1.next()) != null) {
+    for (String field1 : fields1) {
       assertEquals("Different fields", field1, fenum2.next());
-      Terms terms1 = fenum1.terms();
+      Terms terms1 = fields1.terms(field1);
       if (terms1 == null) {
-        assertNull(fenum2.terms());
+        assertNull(fields2.terms(field1));
         continue;
       }
       TermsEnum enum1 = terms1.iterator(null);
 
-      Terms terms2 = fenum2.terms();
+      Terms terms2 = fields2.terms(field1);
       assertNotNull(terms2);
       TermsEnum enum2 = terms2.iterator(null);
 
       while(enum1.next() != null) {
         assertEquals("Different terms", enum1.term(), enum2.next());
-        DocsAndPositionsEnum tp1 = enum1.docsAndPositions(liveDocs, null, false);
-        DocsAndPositionsEnum tp2 = enum2.docsAndPositions(liveDocs, null, false);
+        DocsAndPositionsEnum tp1 = enum1.docsAndPositions(liveDocs, null);
+        DocsAndPositionsEnum tp2 = enum2.docsAndPositions(liveDocs, null);
 
         while(tp1.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
           assertTrue(tp2.nextDoc() != DocIdSetIterator.NO_MORE_DOCS);
@@ -644,6 +644,7 @@ public void testFilesOpenClose() throws IOException {
         }
       }
     }
+    assertFalse(fenum2.hasNext());
   }
 
   public void testGetIndexCommit() throws IOException {
@@ -784,7 +785,7 @@ public void testFilesOpenClose() throws IOException {
     DirectoryReader r2 = DirectoryReader.openIfChanged(r);
     assertNotNull(r2);
     r.close();
-    AtomicReader sub0 = r2.getSequentialSubReaders().get(0);
+    AtomicReader sub0 = r2.leaves().get(0).reader();
     final int[] ints2 = FieldCache.DEFAULT.getInts(sub0, "number", false);
     r2.close();
     assertTrue(ints == ints2);
@@ -806,16 +807,15 @@ public void testFilesOpenClose() throws IOException {
   
     DirectoryReader r = DirectoryReader.open(dir);
     AtomicReader r1 = getOnlySegmentReader(r);
-    assertEquals(36, r1.getUniqueTermCount());
+    assertEquals(36, r1.fields().getUniqueTermCount());
     writer.addDocument(doc);
     writer.commit();
     DirectoryReader r2 = DirectoryReader.openIfChanged(r);
     assertNotNull(r2);
     r.close();
   
-    List<? extends AtomicReader> subs = r2.getSequentialSubReaders();
-    for(AtomicReader s : subs) {
-      assertEquals(36, s.getUniqueTermCount());
+    for(AtomicReaderContext s : r2.leaves()) {
+      assertEquals(36, s.reader().fields().getUniqueTermCount());
     }
     r2.close();
     writer.close();
@@ -841,7 +841,7 @@ public void testFilesOpenClose() throws IOException {
       // expected
     }
   
-    assertEquals(-1, ((SegmentReader) r.getSequentialSubReaders().get(0)).getTermInfosIndexDivisor());
+    assertEquals(-1, ((SegmentReader) r.leaves().get(0).reader()).getTermInfosIndexDivisor());
     writer = new IndexWriter(
         dir,
         newIndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random())).
@@ -856,11 +856,11 @@ public void testFilesOpenClose() throws IOException {
     assertNotNull(r2);
     assertNull(DirectoryReader.openIfChanged(r2));
     r.close();
-    List<? extends AtomicReader> subReaders = r2.getSequentialSubReaders();
-    assertEquals(2, subReaders.size());
-    for(AtomicReader s : subReaders) {
+    List<AtomicReaderContext> leaves = r2.leaves();
+    assertEquals(2, leaves.size());
+    for(AtomicReaderContext ctx : leaves) {
       try {
-        s.docFreq(new Term("field", "f"));
+        ctx.reader().docFreq(new Term("field", "f"));
         fail("did not hit expected exception");
       } catch (IllegalStateException ise) {
         // expected
@@ -1126,7 +1126,7 @@ public void testFilesOpenClose() throws IOException {
     } catch (IllegalStateException ise) {
       // expected
     }    
-    assertEquals(-1, ((SegmentReader) r.getSequentialSubReaders().get(0)).getTermInfosIndexDivisor());
+    assertEquals(-1, ((SegmentReader) r.leaves().get(0).reader()).getTermInfosIndexDivisor());
     r.close();
        
     // open(IndexCommit, int)
@@ -1137,7 +1137,7 @@ public void testFilesOpenClose() throws IOException {
     } catch (IllegalStateException ise) {
       // expected
     }    
-    assertEquals(-1, ((SegmentReader) r.getSequentialSubReaders().get(0)).getTermInfosIndexDivisor());
+    assertEquals(-1, ((SegmentReader) r.leaves().get(0).reader()).getTermInfosIndexDivisor());
     r.close();
     dir.close();
   }

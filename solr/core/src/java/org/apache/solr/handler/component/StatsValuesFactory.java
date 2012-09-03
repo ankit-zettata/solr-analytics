@@ -21,7 +21,6 @@ import java.util.Date;
 import java.util.Map;
 import java.util.HashMap;
 
-import org.apache.commons.lang.NotImplementedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.util.NamedList;
@@ -39,7 +38,7 @@ public class StatsValuesFactory {
    * @param sf SchemaField for the field whose statistics will be created by the resulting StatsValues
    * @return Instance of StatsValues that will create statistics from values from a field of the given type
    */
-  public static StatsValues createStatsValues(SchemaField sf, boolean minimal) {
+  public static StatsValues createStatsValues(SchemaField sf) {
     FieldType fieldType = sf.getType();
     if (DoubleField.class.isInstance(fieldType) ||
         IntField.class.isInstance(fieldType) ||
@@ -52,7 +51,7 @@ public class StatsValuesFactory {
         SortableIntField.class.isInstance(fieldType) ||
         SortableLongField.class.isInstance(fieldType) ||
         SortableFloatField.class.isInstance(fieldType)) {
-      return new NumericStatsValues(sf, minimal);
+      return new NumericStatsValues(sf);
     } else if (DateField.class.isInstance(fieldType)) {
       return new DateStatsValues(sf);
     } else if (StrField.class.isInstance(fieldType)) {
@@ -78,13 +77,11 @@ abstract class AbstractStatsValues<T> implements StatsValues {
   protected T min;
   protected long missing;
   protected long count;
-  protected boolean minimal;
   
   // facetField   facetValue
   protected Map<String, Map<String, StatsValues>> facets = new HashMap<String, Map<String, StatsValues>>();
 
-  protected AbstractStatsValues(SchemaField sf, boolean minimal) {
-    this.minimal = minimal;
+  protected AbstractStatsValues(SchemaField sf) {
     this.sf = sf;
     this.ft = sf.getType();
   }
@@ -96,9 +93,7 @@ abstract class AbstractStatsValues<T> implements StatsValues {
     count += (Long) stv.get("count");
     missing += (Long) stv.get("missing");
 
-    if (!minimal) {
-      updateMinMax((T) stv.get("min"), (T) stv.get("max"));
-    }
+    updateMinMax((T) stv.get("min"), (T) stv.get("max"));
     updateTypeSpecificStats(stv);
 
     NamedList f = (NamedList) stv.get(FACETS);
@@ -118,7 +113,7 @@ abstract class AbstractStatsValues<T> implements StatsValues {
         String val = vals.getName(j);
         StatsValues vvals = addTo.get(val);
         if (vvals == null) {
-          vvals = StatsValuesFactory.createStatsValues(sf, minimal);
+          vvals = StatsValuesFactory.createStatsValues(sf);
           addTo.put(val, vvals);
         }
         vvals.accumulate((NamedList) vals.getVal(j));
@@ -166,20 +161,6 @@ abstract class AbstractStatsValues<T> implements StatsValues {
   public void addFacet(String facetName, Map<String, StatsValues> facetValues) {
     facets.put(facetName, facetValues);
   }
-  
- 
-  @Override
-  public Map<String, Map<String,Double>> getNumericFacetStats() {   
-    Map<String,Map<String,Double>> facetMap = new HashMap<String,Map<String,Double>>();
-    for (Map.Entry<String, Map<String, StatsValues>> facetEntry : facets.entrySet()) {
-      Map<String,Double> facetStatValues = new HashMap<String,Double>();
-      for (Map.Entry<String, StatsValues> facetValue : facetEntry.getValue().entrySet()) {
-        facetStatValues.put(facetValue.getKey(), facetValue.getValue().getSum());
-      }
-      facetMap.put(facetEntry.getKey(), facetStatValues);
-    }
-    return facetMap;
-  }
 
   /**
    * {@inheritDoc}
@@ -187,14 +168,10 @@ abstract class AbstractStatsValues<T> implements StatsValues {
   public NamedList<?> getStatsValues() {
     NamedList<Object> res = new SimpleOrderedMap<Object>();
 
-    if (!minimal) {
-      res.add("min", min);
-      res.add("max", max);
-    }
+    res.add("min", min);
+    res.add("max", max);
     res.add("count", count);
-    if (!minimal) {
-      res.add("missing", missing);
-    }
+    res.add("missing", missing);
     addTypeSpecificStats(res);
 
      // add the facet stats
@@ -205,8 +182,8 @@ abstract class AbstractStatsValues<T> implements StatsValues {
       for (Map.Entry<String, StatsValues> e2 : entry.getValue().entrySet()) {
         nl2.add(e2.getKey(), e2.getValue().getStatsValues());
       }
-      res.add(FACETS, nl);
     }
+    res.add(FACETS, nl);
     return res;
   }
 
@@ -256,8 +233,8 @@ class NumericStatsValues extends AbstractStatsValues<Number> {
   double sum;
   double sumOfSquares;
 
-  public NumericStatsValues(SchemaField sf, boolean minimal) {
-    super(sf, minimal);
+  public NumericStatsValues(SchemaField sf) {
+    super(sf);
     min = Double.POSITIVE_INFINITY;
     max = Double.NEGATIVE_INFINITY;
   }
@@ -303,16 +280,9 @@ class NumericStatsValues extends AbstractStatsValues<Number> {
    */
   protected void addTypeSpecificStats(NamedList<Object> res) {
     res.add("sum", sum);
-    if (!minimal) {
-      res.add("sumOfSquares", sumOfSquares);
-      res.add("mean", sum / count);
-      res.add("stddev", getStandardDeviation());
-    }
-  }
-  
-  @Override
-  public Double getSum() {
-    return sum;
+    res.add("sumOfSquares", sumOfSquares);
+    res.add("mean", sum / count);
+    res.add("stddev", getStandardDeviation());
   }
 
   /**
@@ -338,7 +308,7 @@ class DateStatsValues extends AbstractStatsValues<Date> {
   double sumOfSquares = 0;
 
   public DateStatsValues(SchemaField sf) {
-    super(sf, false);
+    super(sf);
   }
 
   /**
@@ -398,10 +368,7 @@ class DateStatsValues extends AbstractStatsValues<Date> {
     res.add("stddev", getStandardDeviation());
   }
   
-  @Override
-  public Double getSum() {
-    throw new RuntimeException("Date facets do not support sum");
-  }
+
   
   /**
    * Calculates the standard deviation.  For dates, this is really the MS deviation
@@ -422,7 +389,7 @@ class DateStatsValues extends AbstractStatsValues<Date> {
 class StringStatsValues extends AbstractStatsValues<String> {
 
   public StringStatsValues(SchemaField sf) {
-    super(sf, false);
+    super(sf);
   }
 
   /**
@@ -491,10 +458,5 @@ class StringStatsValues extends AbstractStatsValues<String> {
       return str1;
     }
     return (str1.compareTo(str2) < 0) ? str1 : str2;
-  }
-  
-  @Override
-  public Double getSum() {
-    throw new RuntimeException("Date facets do not support sum");
   }
 }

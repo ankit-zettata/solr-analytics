@@ -396,7 +396,8 @@ class BufferedDeletesStream {
       // System.out.println("  term=" + term);
 
       if (termsEnum.seekExact(term.bytes(), false)) {
-        DocsEnum docsEnum = termsEnum.docs(rld.getLiveDocs(), docs, false);
+        // we don't need term frequencies for this
+        DocsEnum docsEnum = termsEnum.docs(rld.getLiveDocs(), docs, 0);
         //System.out.println("BDS: got docsEnum=" + docsEnum);
 
         if (docsEnum != null) {
@@ -438,7 +439,7 @@ class BufferedDeletesStream {
   // Delete by query
   private static long applyQueryDeletes(Iterable<QueryAndLimit> queriesIter, ReadersAndLiveDocs rld, final SegmentReader reader) throws IOException {
     long delCount = 0;
-    final AtomicReaderContext readerContext = reader.getTopReaderContext();
+    final AtomicReaderContext readerContext = reader.getContext();
     boolean any = false;
     for (QueryAndLimit ent : queriesIter) {
       Query query = ent.query;

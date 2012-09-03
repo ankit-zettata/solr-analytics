@@ -51,6 +51,7 @@ import org.apache.lucene.store.Directory;
 public abstract class DirectoryReader extends BaseCompositeReader<AtomicReader> {
   public static final int DEFAULT_TERMS_INDEX_DIVISOR = 1;
 
+  /** The index directory. */
   protected final Directory directory;
   
   /** Returns a IndexReader reading the index in the given
@@ -75,6 +76,9 @@ public abstract class DirectoryReader extends BaseCompositeReader<AtomicReader> 
    *  memory usage, at the expense of higher latency when
    *  loading a TermInfo.  The default value is 1.  Set this
    *  to -1 to skip loading the terms index entirely.
+   *  <b>NOTE:</b> divisor settings &gt; 1 do not apply to all PostingsFormat
+   *  implementations, including the default one in this release. It only makes
+   *  sense for terms indexes that can efficiently re-sample terms at load time.
    * @throws IOException if there is a low-level IO error
    */
   public static DirectoryReader open(final Directory directory, int termInfosIndexDivisor) throws IOException {
@@ -126,6 +130,9 @@ public abstract class DirectoryReader extends BaseCompositeReader<AtomicReader> 
    *  memory usage, at the expense of higher latency when
    *  loading a TermInfo.  The default value is 1.  Set this
    *  to -1 to skip loading the terms index entirely.
+   *  <b>NOTE:</b> divisor settings &gt; 1 do not apply to all PostingsFormat
+   *  implementations, including the default one in this release. It only makes
+   *  sense for terms indexes that can efficiently re-sample terms at load time.
    * @throws IOException if there is a low-level IO error
    */
   public static DirectoryReader open(final IndexCommit commit, int termInfosIndexDivisor) throws IOException {

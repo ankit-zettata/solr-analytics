@@ -60,6 +60,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.DocIdBitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.NamedThreadFactory;
 import org.apache.lucene.util._TestUtil;
 import org.junit.BeforeClass;
 
@@ -207,7 +208,7 @@ public class TestSort extends LuceneTestCase {
         if (data[i][11] != null) doc.add (new StringField ("parser",     data[i][11], Field.Store.NO));
 
         for(IndexableField f : doc.getFields()) {
-          if (!f.fieldType().omitNorms()) {
+          if (f.fieldType().indexed() && !f.fieldType().omitNorms()) {
             ((Field) f).setBoost(2.0f);
           }
         }
@@ -254,7 +255,7 @@ public class TestSort extends LuceneTestCase {
       }
       doc.add (new Field ("tracer2", num2, onlyStored));
       for(IndexableField f2 : doc.getFields()) {
-        if (!f2.fieldType().omitNorms()) {
+        if (f2.fieldType().indexed() && !f2.fieldType().omitNorms()) {
           ((Field) f2).setBoost(2.0f);
         }
       }
@@ -274,7 +275,7 @@ public class TestSort extends LuceneTestCase {
       doc.add (new Field ("tracer2_fixed", num2Fixed, onlyStored));
 
       for(IndexableField f2 : doc.getFields()) {
-        if (!f2.fieldType().omitNorms()) {
+        if (f2.fieldType().indexed() && !f2.fieldType().omitNorms()) {
           ((Field) f2).setBoost(2.0f);
         }
       }
@@ -835,7 +836,7 @@ public class TestSort extends LuceneTestCase {
     assertMatches (full, queryG, sort, "ZYXW");
 
     // Do the same for a ParallelMultiSearcher
-    ExecutorService exec = Executors.newFixedThreadPool(_TestUtil.nextInt(random(), 2, 8));
+    ExecutorService exec = Executors.newFixedThreadPool(_TestUtil.nextInt(random(), 2, 8), new NamedThreadFactory("testEmptyFieldSort"));
     IndexSearcher parallelSearcher=new IndexSearcher (full.getIndexReader(), exec);
 
     sort.setSort (new SortField ("int", SortField.Type.INT),
@@ -879,7 +880,7 @@ public class TestSort extends LuceneTestCase {
 
   // test a variety of sorts using a parallel multisearcher
   public void testParallelMultiSort() throws Exception {
-    ExecutorService exec = Executors.newFixedThreadPool(_TestUtil.nextInt(random(), 2, 8));
+    ExecutorService exec = Executors.newFixedThreadPool(_TestUtil.nextInt(random(), 2, 8), new NamedThreadFactory("testParallelMultiSort"));
     IndexSearcher searcher = new IndexSearcher(
                                   new MultiReader(searchX.getIndexReader(),
                                                   searchY.getIndexReader()), exec);

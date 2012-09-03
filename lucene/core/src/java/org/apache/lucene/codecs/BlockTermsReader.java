@@ -18,6 +18,7 @@ package org.apache.lucene.codecs;
  */
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.TreeMap;
@@ -27,7 +28,6 @@ import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.FieldsEnum;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
@@ -184,8 +184,8 @@ public class BlockTermsReader extends FieldsProducer {
   }
 
   @Override
-  public FieldsEnum iterator() {
-    return new TermFieldsEnum();
+  public Iterator<String> iterator() {
+    return Collections.unmodifiableSet(fields.keySet()).iterator();
   }
 
   @Override
@@ -197,32 +197,6 @@ public class BlockTermsReader extends FieldsProducer {
   @Override
   public int size() {
     return fields.size();
-  }
-
-  // Iterates through all fields
-  private class TermFieldsEnum extends FieldsEnum {
-    final Iterator<FieldReader> it;
-    FieldReader current;
-
-    TermFieldsEnum() {
-      it = fields.values().iterator();
-    }
-
-    @Override
-    public String next() {
-      if (it.hasNext()) {
-        current = it.next();
-        return current.fieldInfo.name;
-      } else {
-        current = null;
-        return null;
-      }
-    }
-    
-    @Override
-    public Terms terms() throws IOException {
-      return current;
-    }
   }
 
   private class FieldReader extends Terms {
@@ -251,6 +225,21 @@ public class BlockTermsReader extends FieldsProducer {
     @Override
     public TermsEnum iterator(TermsEnum reuse) throws IOException {
       return new SegmentTermsEnum();
+    }
+
+    @Override
+    public boolean hasOffsets() {
+      return fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) >= 0;
+    }
+
+    @Override
+    public boolean hasPositions() {
+      return fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) >= 0;
+    }
+    
+    @Override
+    public boolean hasPayloads() {
+      return fieldInfo.hasPayloads();
     }
 
     @Override
@@ -319,7 +308,7 @@ public class BlockTermsReader extends FieldsProducer {
       private int metaDataUpto;
 
       public SegmentTermsEnum() throws IOException {
-        in = (IndexInput) BlockTermsReader.this.in.clone();
+        in = BlockTermsReader.this.in.clone();
         in.seek(termsStartPointer);
         indexEnum = indexReader.getFieldEnum(fieldInfo);
         doOrd = indexReader.supportsOrd();
@@ -683,31 +672,22 @@ public class BlockTermsReader extends FieldsProducer {
       }
 
       @Override
-      public DocsEnum docs(Bits liveDocs, DocsEnum reuse, boolean needsFreqs) throws IOException {
+      public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
         //System.out.println("BTR.docs this=" + this);
-        if (needsFreqs && fieldInfo.getIndexOptions() == IndexOptions.DOCS_ONLY) {
-          return null;
-        }
         decodeMetaData();
         //System.out.println("BTR.docs:  state.docFreq=" + state.docFreq);
-        return postingsReader.docs(fieldInfo, state, liveDocs, reuse, needsFreqs);
+        return postingsReader.docs(fieldInfo, state, liveDocs, reuse, flags);
       }
 
       @Override
-      public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, boolean needsOffsets) throws IOException {
+      public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
         if (fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS) < 0) {
           // Positions were not indexed:
           return null;
         }
 
-        if (needsOffsets &&
-            fieldInfo.getIndexOptions().compareTo(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) < 0) {
-          // Offsets were not indexed:
-          return null;
-        }
-
         decodeMetaData();
-        return postingsReader.docsAndPositions(fieldInfo, state, liveDocs, reuse, needsOffsets);
+        return postingsReader.docsAndPositions(fieldInfo, state, liveDocs, reuse, flags);
       }
 
       @Override

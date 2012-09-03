@@ -31,6 +31,7 @@ import org.apache.solr.common.params.CommonParams;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.FastInputStream;
+import org.apache.solr.util.DefaultSolrThreadFactory;
 import org.apache.solr.util.FileUtils;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.core.CachingDirectoryFactory.CloseListener;
@@ -178,7 +179,8 @@ public class SnapPuller {
         }
       }
     };
-    executorService = Executors.newSingleThreadScheduledExecutor();
+    executorService = Executors.newSingleThreadScheduledExecutor(
+        new DefaultSolrThreadFactory("snapPuller"));
     long initialDelay = pollInterval - (System.currentTimeMillis() % pollInterval);
     executorService.scheduleAtFixedRate(task, initialDelay, pollInterval, TimeUnit.MILLISECONDS);
     LOG.info("Poll Scheduled at an interval of " + pollInterval + "ms");
@@ -241,12 +243,11 @@ public class SnapPuller {
    * downloaded. It also downloads the conf files (if they are modified).
    *
    * @param core the SolrCore
-   * @param force force a replication in all cases 
+   * @param forceReplication force a replication in all cases 
    * @return true on success, false if slave is already in sync
    * @throws IOException if an exception occurs
    */
-  @SuppressWarnings("unchecked")
-  boolean fetchLatestIndex(SolrCore core, boolean force) throws IOException, InterruptedException {
+  boolean fetchLatestIndex(SolrCore core, boolean forceReplication) throws IOException, InterruptedException {
     successfulInstall = false;
     replicationStartTime = System.currentTimeMillis();
     try {
@@ -276,7 +277,7 @@ public class SnapPuller {
       }
       
       if (latestVersion == 0L) {
-        if (force && commit.getGeneration() != 0) {
+        if (forceReplication && commit.getGeneration() != 0) {
           // since we won't get the files for an empty index,
           // we just clear ours and commit
           RefCounted<IndexWriter> iw = core.getUpdateHandler().getSolrCoreState().getIndexWriter(core);
@@ -295,7 +296,7 @@ public class SnapPuller {
         return true;
       }
       
-      if (!force && IndexDeletionPolicyWrapper.getCommitTimestamp(commit) == latestVersion) {
+      if (!forceReplication && IndexDeletionPolicyWrapper.getCommitTimestamp(commit) == latestVersion) {
         //master and slave are already in sync just return
         LOG.info("Slave in sync with master.");
         successfulInstall = true;
@@ -311,20 +312,22 @@ public class SnapPuller {
       LOG.info("Number of files in latest index in master: " + filesToDownload.size());
 
       // Create the sync service
-      fsyncService = Executors.newSingleThreadExecutor();
+      fsyncService = Executors.newSingleThreadExecutor(new DefaultSolrThreadFactory("fsyncService"));
       // use a synchronized list because the list is read by other threads (to show details)
       filesDownloaded = Collections.synchronizedList(new ArrayList<Map<String, Object>>());
       // if the generateion of master is older than that of the slave , it means they are not compatible to be copied
       // then a new index direcory to be created and all the files need to be copied
-      boolean isFullCopyNeeded = IndexDeletionPolicyWrapper.getCommitTimestamp(commit) >= latestVersion || force;
+      boolean isFullCopyNeeded = IndexDeletionPolicyWrapper.getCommitTimestamp(commit) >= latestVersion || forceReplication;
       File tmpIndexDir = createTempindexDir(core);
-      if (isIndexStale())
+      if (isIndexStale()) {
         isFullCopyNeeded = true;
+      }
       LOG.info("Starting download to " + tmpIndexDir + " fullCopy=" + isFullCopyNeeded);
       successfulInstall = false;
       boolean deleteTmpIdxDir = true;
 
-      final File indexDir = new File(core.getIndexDir());
+      // make sure it's the newest known index dir...
+      final File indexDir = new File(core.getNewIndexDir());
       Directory oldDirectory = null;
       try {
         downloadIndexFiles(isFullCopyNeeded, tmpIndexDir, latestGeneration);
@@ -381,7 +384,7 @@ public class SnapPuller {
             // may be closed
             core.getDirectoryFactory().doneWithDirectory(oldDirectory);
           }
-          doCommit();
+          doCommit(isFullCopyNeeded);
         }
         
         replicationStartTime = 0;
@@ -530,11 +533,11 @@ public class SnapPuller {
     return sb;
   }
 
-  private void doCommit() throws IOException {
+  private void doCommit(boolean isFullCopyNeeded) throws IOException {
     SolrQueryRequest req = new LocalSolrQueryRequest(solrCore,
         new ModifiableSolrParams());
     // reboot the writer on the new index and get a new searcher
-    solrCore.getUpdateHandler().newIndexWriter();
+    solrCore.getUpdateHandler().newIndexWriter(isFullCopyNeeded);
     
     try {
       // first try to open an NRT searcher so that the new 

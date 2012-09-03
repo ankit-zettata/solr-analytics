@@ -40,10 +40,7 @@ public class TestFilterAtomicReader extends LuceneTestCase {
       TestFields(Fields in) {
         super(in);
       }
-      @Override
-      public FieldsEnum iterator() throws IOException {
-        return new TestFieldsEnum(super.iterator());
-      }
+
       @Override
       public Terms terms(String field) throws IOException {
         return new TestTerms(super.terms(field));
@@ -58,17 +55,6 @@ public class TestFilterAtomicReader extends LuceneTestCase {
       @Override
       public TermsEnum iterator(TermsEnum reuse) throws IOException {
         return new TestTermsEnum(super.iterator(reuse));
-      }
-    }
-
-    private static class TestFieldsEnum extends FilterFieldsEnum {
-      TestFieldsEnum(FieldsEnum in) {
-        super(in);
-      }
-
-      @Override
-      public Terms terms() throws IOException {
-        return new TestTerms(super.terms());
       }
     }
 
@@ -89,8 +75,8 @@ public class TestFilterAtomicReader extends LuceneTestCase {
       }
 
       @Override
-      public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, boolean needsOffsets) throws IOException {
-        return new TestPositions(super.docsAndPositions(liveDocs, reuse == null ? null : ((FilterDocsAndPositionsEnum) reuse).in, needsOffsets));
+      public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
+        return new TestPositions(super.docsAndPositions(liveDocs, reuse == null ? null : ((FilterDocsAndPositionsEnum) reuse).in, flags));
       }
     }
 
@@ -164,8 +150,7 @@ public class TestFilterAtomicReader extends LuceneTestCase {
     
     assertEquals(TermsEnum.SeekStatus.FOUND, terms.seekCeil(new BytesRef("one")));
     
-    DocsAndPositionsEnum positions = terms.docsAndPositions(MultiFields.getLiveDocs(reader),
-                                                            null, false);
+    DocsAndPositionsEnum positions = terms.docsAndPositions(MultiFields.getLiveDocs(reader), null);
     while (positions.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
       assertTrue((positions.docID() % 2) == 1);
     }
@@ -195,7 +180,6 @@ public class TestFilterAtomicReader extends LuceneTestCase {
     checkOverrideMethods(FilterAtomicReader.class);
     checkOverrideMethods(FilterAtomicReader.FilterFields.class);
     checkOverrideMethods(FilterAtomicReader.FilterTerms.class);
-    checkOverrideMethods(FilterAtomicReader.FilterFieldsEnum.class);
     checkOverrideMethods(FilterAtomicReader.FilterTermsEnum.class);
     checkOverrideMethods(FilterAtomicReader.FilterDocsEnum.class);
     checkOverrideMethods(FilterAtomicReader.FilterDocsAndPositionsEnum.class);

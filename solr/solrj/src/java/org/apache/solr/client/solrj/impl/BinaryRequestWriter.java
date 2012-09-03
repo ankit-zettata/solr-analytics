@@ -16,6 +16,7 @@
  */
 package org.apache.solr.client.solrj.impl;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.SolrRequest;
 import org.apache.solr.client.solrj.request.JavaBinUpdateRequestCodec;
 import org.apache.solr.client.solrj.request.RequestWriter;
@@ -67,6 +68,8 @@ public class BinaryRequestWriter extends RequestWriter {
     new JavaBinUpdateRequestCodec().marshal(request, baos);
     
     return new ContentStream() {
+      private ByteArrayInputStream stream;
+      
       public String getName() {
         return null;
       }
@@ -85,11 +88,18 @@ public class BinaryRequestWriter extends RequestWriter {
       }
 
       public InputStream getStream() {
-        return new ByteArrayInputStream(baos.getbuf(), 0, baos.size());
+        stream = new ByteArrayInputStream(baos.getbuf(), 0, baos.size());
+        return stream;
       }
 
       public Reader getReader() {
         throw new RuntimeException("No reader available . this is a binarystream");
+      }
+
+      @Override
+      public void close() throws IOException {
+        IOUtils.closeQuietly(baos);
+        IOUtils.closeQuietly(this.stream);
       }
     };
   }

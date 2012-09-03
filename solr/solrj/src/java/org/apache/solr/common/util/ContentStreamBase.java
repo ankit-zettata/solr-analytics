@@ -17,6 +17,7 @@
 
 package org.apache.solr.common.util;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
@@ -29,7 +30,9 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.Locale;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.vfs2.FileObject;
+import org.apache.commons.vfs2.FileSystemException;
 import org.apache.commons.vfs2.FileSystemManager;
 import org.apache.commons.vfs2.VFS;
 
@@ -47,6 +50,8 @@ public abstract class ContentStreamBase implements ContentStream
   protected String sourceInfo;
   protected String contentType;
   protected Long size;
+  private Reader decoder;
+  private BufferedReader buffered;
   
   //---------------------------------------------------------------------
   //---------------------------------------------------------------------
@@ -65,7 +70,11 @@ public abstract class ContentStreamBase implements ContentStream
   //------------------------------------------------------------------------
   //------------------------------------------------------------------------
   
-  public static class VFSStream extends ContentStreamBase {
+  /**
+   * Creates a new content stream from an apache virtual file system
+   * source (which allows reading compressed files).
+   */
+ public static class VFSStream extends ContentStreamBase {
     
     private final String vfsUri;
     private static volatile FileSystemManager fsManager = null;
@@ -75,21 +84,41 @@ public abstract class ContentStreamBase implements ContentStream
       this.vfsUri = vfsUri;
       sourceInfo = "vfs";
     }
+    
+    FileObject fileObject = null;
+    InputStream gzipStream = null;
+    
 
     public InputStream getStream() throws IOException {
-      if (fsManager == null) {
-        synchronized (lock) {
-          if (fsManager == null) {
-            fsManager = VFS.getManager();
-          }
-        }        
-      }
-      
-      FileObject fileObject = fsManager.resolveFile(this.vfsUri);
-      return fileObject.getContent().getInputStream();
+        if (fsManager == null) {
+          synchronized (lock) {
+            if (fsManager == null) {
+              fsManager = VFS.getManager();
+            }
+          }        
+        }
+        
+        fileObject = fsManager.resolveFile(this.vfsUri);
+        gzipStream = fileObject.getContent().getInputStream();
+        return gzipStream;
     }
-    
+
+    @Override
+    public void close() {
+      super.close();
+      if (gzipStream != null) {
+        IOUtils.closeQuietly(gzipStream);
+      }
+      if (fileObject != null) {
+        try {
+          fileObject.close();
+        } catch (FileSystemException e) {
+          // ignore
+        }
+      }
+    }
   }
+  
   
   /**
    * Construct a <code>ContentStream</code> from a <code>URL</code>
@@ -100,19 +129,28 @@ public abstract class ContentStreamBase implements ContentStream
   public static class URLStream extends ContentStreamBase
   {
     private final URL url;
+    private InputStream stream;
     
     public URLStream( URL url ) {
       this.url = url; 
       sourceInfo = "url";
     }
 
+    @Override
     public InputStream getStream() throws IOException {
       URLConnection conn = this.url.openConnection();
       
       contentType = conn.getContentType();
       name = url.toExternalForm();
       size = new Long( conn.getContentLength() );
-      return conn.getInputStream();
+      stream = conn.getInputStream();
+      return stream;
+    }
+
+    @Override
+    public void close() {
+      super.close();
+      IOUtils.closeQuietly(stream);
     }
   }
   
@@ -122,6 +160,7 @@ public abstract class ContentStreamBase implements ContentStream
   public static class FileStream extends ContentStreamBase
   {
     private final File file;
+    private FileInputStream stream;
     
     public FileStream( File f ) {
       file = f; 
@@ -132,36 +171,39 @@ public abstract class ContentStreamBase implements ContentStream
       sourceInfo = file.toURI().toString();
     }
 
+    @Override
     public String getContentType() {
       if(contentType==null) {
+        InputStream stream = null;
         try {
-          char first = (char)new FileInputStream( file ).read();
+          stream = new FileInputStream(file);
+          char first = (char)stream.read();
           if(first == '<') {
             return "application/xml";
           }
           if(first == '{') {
             return "application/json";
           }
+        } catch(Exception ex) {
+        } finally {
+          if (stream != null) try {
+            stream.close();
+          } catch (IOException ioe) {}
         }
-        catch(Exception ex) {}
       }
       return contentType;
     }
 
+    @Override
     public InputStream getStream() throws IOException {
-      return new FileInputStream( file );
+      stream = new FileInputStream( file );
+      return stream;
     }
 
-    /**
-     * If an charset is defined (by the contentType) use that, otherwise 
-     * use a UTF-8 reader
-     */
     @Override
-    public Reader getReader() throws IOException {
-      String charset = getCharsetFromContentType( contentType );
-      return charset == null 
-        ? new InputStreamReader(getStream(), "UTF-8")
-        : new InputStreamReader( getStream(), charset );
+    public void close() {
+      super.close();
+      IOUtils.closeQuietly(stream);
     }
   }
   
@@ -172,6 +214,8 @@ public abstract class ContentStreamBase implements ContentStream
   public static class StringStream extends ContentStreamBase
   {
     private final String str;
+    private ByteArrayInputStream stream;
+    private Reader reader;
     
     public StringStream( String str ) {
       this.str = str; 
@@ -182,6 +226,7 @@ public abstract class ContentStreamBase implements ContentStream
       sourceInfo = "string";
     }
 
+    @Override
     public String getContentType() {
       if(contentType==null && str.length() > 0) {
         char first = str.charAt(0);
@@ -196,8 +241,10 @@ public abstract class ContentStreamBase implements ContentStream
       return contentType;
     }
 
+    @Override
     public InputStream getStream() throws IOException {
-      return new ByteArrayInputStream( str.getBytes(DEFAULT_CHARSET) );
+      stream = new ByteArrayInputStream( str.getBytes(DEFAULT_CHARSET) );
+      return stream;
     }
 
     /**
@@ -207,9 +254,17 @@ public abstract class ContentStreamBase implements ContentStream
     @Override
     public Reader getReader() throws IOException {
       String charset = getCharsetFromContentType( contentType );
-      return charset == null 
+      reader = charset == null 
         ? new StringReader( str )
         : new InputStreamReader( getStream(), charset );
+      return reader;
+    }
+
+    @Override
+    public void close() {
+      super.close();
+      IOUtils.closeQuietly(reader);
+      IOUtils.closeQuietly(stream);
     }
   }
 
@@ -219,9 +274,14 @@ public abstract class ContentStreamBase implements ContentStream
    */
   public Reader getReader() throws IOException {
     String charset = getCharsetFromContentType( getContentType() );
-    return charset == null 
+    decoder = charset == null 
       ? new InputStreamReader( getStream(), DEFAULT_CHARSET )
       : new InputStreamReader( getStream(), charset );
+    
+      // added for memory management and performance improvements
+      // smaller buffer to manage memory pressures better
+      buffered = new BufferedReader(decoder,2048);
+      return buffered;
   }
 
   //------------------------------------------------------------------
@@ -258,5 +318,10 @@ public abstract class ContentStreamBase implements ContentStream
 
   public void setSourceInfo(String sourceInfo) {
     this.sourceInfo = sourceInfo;
+  }
+  
+  public void close() {
+    IOUtils.closeQuietly(this.buffered);
+    IOUtils.closeQuietly(this.decoder);
   }
 }

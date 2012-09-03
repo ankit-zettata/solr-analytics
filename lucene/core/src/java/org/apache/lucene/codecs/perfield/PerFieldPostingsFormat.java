@@ -19,6 +19,7 @@ package org.apache.lucene.codecs.perfield;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -30,7 +31,6 @@ import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.TermsConsumer;
 import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldsEnum;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Terms;
@@ -197,34 +197,9 @@ public abstract class PerFieldPostingsFormat extends PostingsFormat {
       }
     }
 
-    private final class FieldsIterator extends FieldsEnum {
-      private final Iterator<String> it;
-      private String current;
-
-      public FieldsIterator() {
-        it = fields.keySet().iterator();
-      }
-
-      @Override
-      public String next() {
-        if (it.hasNext()) {
-          current = it.next();
-        } else {
-          current = null;
-        }
-
-        return current;
-      }
-
-      @Override
-      public Terms terms() throws IOException {
-        return fields.get(current).terms(current);
-      }
-    }
-
     @Override
-    public FieldsEnum iterator() throws IOException {
-      return new FieldsIterator();
+    public Iterator<String> iterator() {
+      return Collections.unmodifiableSet(fields.keySet()).iterator();
     }
 
     @Override

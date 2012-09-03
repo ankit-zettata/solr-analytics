@@ -41,6 +41,14 @@ public abstract class Codec implements NamedSPILoader.NamedSPI {
 
   private final String name;
 
+  /**
+   * Creates a new codec.
+   * <p>
+   * The provided name will be written into the index segment: in order to
+   * for the segment to be read this class should be registered with Java's
+   * SPI mechanism (registered in META-INF/ of your jar file, etc).
+   * @param name must be all ascii alphanumeric, and less than 128 characters in length.
+   */
   public Codec(String name) {
     NamedSPILoader.checkServiceName(name);
     this.name = name;
@@ -86,6 +94,21 @@ public abstract class Codec implements NamedSPILoader.NamedSPI {
     return loader.availableServices();
   }
   
+  /** 
+   * Reloads the codec list from the given {@link ClassLoader}.
+   * Changes to the codecs are visible after the method ends, all
+   * iterators ({@link #availableCodecs()},...) stay consistent. 
+   * 
+   * <p><b>NOTE:</b> Only new codecs are added, existing ones are
+   * never removed or replaced.
+   * 
+   * <p><em>This method is expensive and should only be called for discovery
+   * of new codecs on the given classpath/classloader!</em>
+   */
+  public static void reloadCodecs(ClassLoader classloader) {
+    loader.reload(classloader);
+  }
+  
   private static Codec defaultCodec = Codec.forName("Lucene40");
   
   /** expert: returns the default codec used for newly created
@@ -103,6 +126,10 @@ public abstract class Codec implements NamedSPILoader.NamedSPI {
     defaultCodec = codec;
   }
 
+  /**
+   * returns the codec's name. Subclasses can override to provide
+   * more detail (such as parameters).
+   */
   @Override
   public String toString() {
     return name;

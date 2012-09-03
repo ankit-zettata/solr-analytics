@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 import org.apache.lucene.codecs.TermVectorsReader;
 import org.apache.lucene.index.CorruptIndexException;
@@ -30,7 +32,6 @@ import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.FieldsEnum;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -230,23 +231,27 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
     }
     
     @Override
-    public FieldsEnum iterator() throws IOException {
-
-      return new FieldsEnum() {
+    public Iterator<String> iterator() {
+      return new Iterator<String>() {
         private int fieldUpto;
 
         @Override
-        public String next() throws IOException {
+        public String next() {
           if (fieldNumbers != null && fieldUpto < fieldNumbers.length) {
             return fieldInfos.fieldInfo(fieldNumbers[fieldUpto++]).name;
           } else {
-            return null;
+            throw new NoSuchElementException();
           }
         }
 
         @Override
-        public Terms terms() throws IOException {
-          return TVFields.this.terms(fieldInfos.fieldInfo(fieldNumbers[fieldUpto-1]).name);
+        public boolean hasNext() {
+          return fieldNumbers != null && fieldUpto < fieldNumbers.length;
+        }
+
+        @Override
+        public void remove() {
+          throw new UnsupportedOperationException();
         }
       };
     }
@@ -281,11 +286,16 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
   private class TVTerms extends Terms {
     private final int numTerms;
     private final long tvfFPStart;
+    private final boolean storePositions;
+    private final boolean storeOffsets;
     private final boolean unicodeSortOrder;
 
     public TVTerms(long tvfFP) throws IOException {
       tvf.seek(tvfFP);
       numTerms = tvf.readVInt();
+      final byte bits = tvf.readByte();
+      storePositions = (bits & STORE_POSITIONS_WITH_TERMVECTOR) != 0;
+      storeOffsets = (bits & STORE_OFFSET_WITH_TERMVECTOR) != 0;
       tvfFPStart = tvf.getFilePointer();
       unicodeSortOrder = sortTermsByUnicode();
     }
@@ -301,7 +311,7 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
       } else {
         termsEnum = new TVTermsEnum();
       }
-      termsEnum.reset(numTerms, tvfFPStart, unicodeSortOrder);
+      termsEnum.reset(numTerms, tvfFPStart, storePositions, storeOffsets, unicodeSortOrder);
       return termsEnum;
     }
 
@@ -334,6 +344,21 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
         return BytesRef.getUTF8SortedAsUTF16Comparator();
       }
     }
+
+    @Override
+    public boolean hasOffsets() {
+      return storeOffsets;
+    }
+
+    @Override
+    public boolean hasPositions() {
+      return storePositions;
+    }
+
+    @Override
+    public boolean hasPayloads() {
+      return false;
+    }
   }
 
   static class TermAndPostings {
@@ -358,20 +383,19 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
     // NOTE: tvf is pre-positioned by caller
     public TVTermsEnum() throws IOException {
       this.origTVF = Lucene3xTermVectorsReader.this.tvf;
-      tvf = (IndexInput) origTVF.clone();
+      tvf = origTVF.clone();
     }
 
     public boolean canReuse(IndexInput tvf) {
       return tvf == origTVF;
     }
 
-    public void reset(int numTerms, long tvfFPStart, boolean unicodeSortOrder) throws IOException {
+    public void reset(int numTerms, long tvfFPStart, boolean storePositions, boolean storeOffsets, boolean unicodeSortOrder) throws IOException {
       this.numTerms = numTerms;
+      this.storePositions = storePositions;
+      this.storeOffsets = storeOffsets;
       currentTerm = -1;
       tvf.seek(tvfFPStart);
-      final byte bits = tvf.readByte();
-      storePositions = (bits & STORE_POSITIONS_WITH_TERMVECTOR) != 0;
-      storeOffsets = (bits & STORE_OFFSET_WITH_TERMVECTOR) != 0;
       this.unicodeSortOrder = unicodeSortOrder;
       readVectors();
       if (unicodeSortOrder) {
@@ -403,7 +427,11 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
           int positions[] = new int[freq];
           int pos = 0;
           for(int posUpto=0;posUpto<freq;posUpto++) {
-            pos += tvf.readVInt();
+            int delta = tvf.readVInt();
+            if (delta == -1) {
+              delta = 0; // LUCENE-1542 correction
+            }
+            pos += delta;
             positions[posUpto] = pos;
           }
           t.positions = positions;
@@ -477,7 +505,7 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
     }
 
     @Override
-    public DocsEnum docs(Bits liveDocs, DocsEnum reuse, boolean needsFreqs /* ignored */) throws IOException {
+    public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags /* ignored */) throws IOException {
       TVDocsEnum docsEnum;
       if (reuse != null && reuse instanceof TVDocsEnum) {
         docsEnum = (TVDocsEnum) reuse;
@@ -489,11 +517,7 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
     }
 
     @Override
-    public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, boolean needsOffsets) throws IOException {
-      if (needsOffsets && !storeOffsets) {
-        return null;
-      }
-
+    public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
       if (!storePositions && !storeOffsets) {
         return null;
       }
@@ -622,11 +646,6 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
     }
 
     @Override
-    public boolean hasPayload() {
-      return false;
-    }
-
-    @Override
     public int nextPosition() {
       assert (positions != null && nextPos < positions.length) ||
         startOffsets != null && nextPos < startOffsets.length;
@@ -641,14 +660,20 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
 
     @Override
     public int startOffset() {
-      assert startOffsets != null;
-      return startOffsets[nextPos-1];
+      if (startOffsets != null) {
+        return startOffsets[nextPos-1];
+      } else {
+        return -1;
+      }
     }
 
     @Override
     public int endOffset() {
-      assert endOffsets != null;
-      return endOffsets[nextPos-1];
+      if (endOffsets != null) {
+        return endOffsets[nextPos-1];
+      } else {
+        return -1;
+      }
     }
   }
 
@@ -681,9 +706,9 @@ class Lucene3xTermVectorsReader extends TermVectorsReader {
     // These are null when a TermVectorsReader was created
     // on a segment that did not have term vectors saved
     if (tvx != null && tvd != null && tvf != null) {
-      cloneTvx = (IndexInput) tvx.clone();
-      cloneTvd = (IndexInput) tvd.clone();
-      cloneTvf = (IndexInput) tvf.clone();
+      cloneTvx = tvx.clone();
+      cloneTvd = tvd.clone();
+      cloneTvf = tvf.clone();
     }
     
     return new Lucene3xTermVectorsReader(fieldInfos, cloneTvx, cloneTvd, cloneTvf, size, numTotalDocs, docStoreOffset, format);

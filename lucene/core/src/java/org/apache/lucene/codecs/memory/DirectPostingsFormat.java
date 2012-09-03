@@ -18,6 +18,7 @@ package org.apache.lucene.codecs.memory;
  */
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.Map;
@@ -32,7 +33,6 @@ import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.FieldsEnum;
 import org.apache.lucene.index.OrdTermState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
@@ -124,36 +124,14 @@ public class DirectPostingsFormat extends PostingsFormat {
     private final Map<String,DirectField> fields = new TreeMap<String,DirectField>();
 
     public DirectFields(SegmentReadState state, Fields fields, int minSkipCount, int lowFreqCutoff) throws IOException {
-      FieldsEnum fieldsEnum = fields.iterator();
-      String field;
-      while ((field = fieldsEnum.next()) != null) {
-        this.fields.put(field, new DirectField(state, field, fieldsEnum.terms(), minSkipCount, lowFreqCutoff));
+      for (String field : fields) {
+        this.fields.put(field, new DirectField(state, field, fields.terms(field), minSkipCount, lowFreqCutoff));
       }
     }
 
     @Override
-    public FieldsEnum iterator() {
-
-      final Iterator<Map.Entry<String,DirectField>> iter = fields.entrySet().iterator();
-
-      return new FieldsEnum() {
-        Map.Entry<String,DirectField> current;
-        
-        @Override
-        public String next() {
-          if (iter.hasNext()) {
-            current = iter.next();
-            return current.getKey();
-          } else {
-            return null;
-          }
-        }
-
-        @Override
-        public Terms terms() {
-          return current.getValue();
-        }
-      };
+    public Iterator<String> iterator() {
+      return Collections.unmodifiableSet(fields.keySet()).iterator();
     }
 
     @Override
@@ -314,9 +292,9 @@ public class DirectPostingsFormat extends PostingsFormat {
         termOffsets[count+1] = termOffset;
 
         if (hasPos) {
-          docsAndPositionsEnum = termsEnum.docsAndPositions(null, docsAndPositionsEnum, hasOffsets);
+          docsAndPositionsEnum = termsEnum.docsAndPositions(null, docsAndPositionsEnum);
         } else {
-          docsEnum = termsEnum.docs(null, docsEnum, hasFreq);
+          docsEnum = termsEnum.docs(null, docsEnum);
         }
 
         final TermAndSkip ent;
@@ -348,9 +326,8 @@ public class DirectPostingsFormat extends PostingsFormat {
                     scratch.add(docsAndPositionsEnum.endOffset());
                   }
                   if (hasPayloads) {
-                    final BytesRef payload;
-                    if (docsAndPositionsEnum.hasPayload()) {
-                      payload = docsAndPositionsEnum.getPayload();
+                    final BytesRef payload = docsAndPositionsEnum.getPayload();
+                    if (payload != null) {
                       scratch.add(payload.length);
                       ros.writeBytes(payload.bytes, payload.offset, payload.length);
                     } else {
@@ -421,9 +398,8 @@ public class DirectPostingsFormat extends PostingsFormat {
                 for(int pos=0;pos<freq;pos++) {
                   positions[upto][posUpto] = docsAndPositionsEnum.nextPosition();
                   if (hasPayloads) {
-                    if (docsAndPositionsEnum.hasPayload()) {
-                      BytesRef payload = docsAndPositionsEnum.getPayload();
-                      assert payload != null;
+                    BytesRef payload = docsAndPositionsEnum.getPayload();
+                    if (payload != null) {
                       byte[] payloadBytes = new byte[payload.length];
                       System.arraycopy(payload.bytes, payload.offset, payloadBytes, 0, payload.length);
                       payloads[upto][pos] = payloadBytes;
@@ -635,6 +611,21 @@ public class DirectPostingsFormat extends PostingsFormat {
       return BytesRef.getUTF8SortedAsUnicodeComparator();
     }
 
+    @Override
+    public boolean hasOffsets() {
+      return hasOffsets;
+    }
+
+    @Override
+    public boolean hasPositions() {
+      return hasPos;
+    }
+    
+    @Override
+    public boolean hasPayloads() {
+      return hasPayloads;
+    }
+
     private final class DirectTermsEnum extends TermsEnum {
 
       private final BytesRef scratch = new BytesRef();
@@ -781,11 +772,7 @@ public class DirectPostingsFormat extends PostingsFormat {
       }
 
       @Override
-      public DocsEnum docs(Bits liveDocs, DocsEnum reuse, boolean needsFreqs) {
-        if (needsFreqs && !hasFreq) {
-          return null;
-        }
-
+      public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) {
         // TODO: implement reuse, something like Pulsing:
         // it's hairy!
 
@@ -858,11 +845,8 @@ public class DirectPostingsFormat extends PostingsFormat {
       }
 
       @Override
-      public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, boolean needsOffsets) {
+      public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) {
         if (!hasPos) {
-          return null;
-        }
-        if (needsOffsets && !hasOffsets) {
           return null;
         }
 
@@ -1384,11 +1368,7 @@ public class DirectPostingsFormat extends PostingsFormat {
       }
 
       @Override
-      public DocsEnum docs(Bits liveDocs, DocsEnum reuse, boolean needsFreqs) {
-        if (needsFreqs && !hasFreq) {
-          return null;
-        }
-
+      public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) {
         // TODO: implement reuse, something like Pulsing:
         // it's hairy!
 
@@ -1420,11 +1400,8 @@ public class DirectPostingsFormat extends PostingsFormat {
       }
 
       @Override
-      public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, boolean needsOffsets) {
+      public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) {
         if (!hasPos) {
-          return null;
-        }
-        if (needsOffsets && !hasOffsets) {
           return null;
         }
 
@@ -1507,7 +1484,6 @@ public class DirectPostingsFormat extends PostingsFormat {
 
     @Override
     public int freq() {
-      assert false;
       return 1;
     }
 
@@ -1807,17 +1783,11 @@ public class DirectPostingsFormat extends PostingsFormat {
     }
 
     @Override
-    public boolean hasPayload() {
-      return payloadLength > 0;
-    }
-
-    @Override
     public BytesRef getPayload() {
       if (payloadLength > 0) {
         payload.bytes = payloadBytes;
         payload.offset = lastPayloadOffset;
         payload.length = payloadLength;
-        payloadLength = 0;
         return payload;
       } else {
         return null;
@@ -1826,7 +1796,7 @@ public class DirectPostingsFormat extends PostingsFormat {
   }
 
   // Docs + freqs:
-  public final static class HighFreqDocsEnum extends DocsEnum {
+  private final static class HighFreqDocsEnum extends DocsEnum {
     private int[] docIDs;
     private int[] freqs;
     private final Bits liveDocs;
@@ -1852,7 +1822,7 @@ public class DirectPostingsFormat extends PostingsFormat {
     public DocsEnum reset(int[] docIDs, int[] freqs) {
       this.docIDs = docIDs;
       this.freqs = freqs;
-      upto = -1;
+      docID = upto = -1;
       return this;
     }
 
@@ -1882,7 +1852,11 @@ public class DirectPostingsFormat extends PostingsFormat {
 
     @Override
     public int freq() {
-      return freqs[upto];
+      if (freqs == null) {
+        return 1;
+      } else {
+        return freqs[upto];
+      }
     }
 
     @Override
@@ -1995,7 +1969,7 @@ public class DirectPostingsFormat extends PostingsFormat {
   }
 
   // TODO: specialize offsets and not
-  public final static class HighFreqDocsAndPositionsEnum extends DocsAndPositionsEnum {
+  private final static class HighFreqDocsAndPositionsEnum extends DocsAndPositionsEnum {
     private int[] docIDs;
     private int[] freqs;
     private int[][] positions;
@@ -2006,7 +1980,6 @@ public class DirectPostingsFormat extends PostingsFormat {
     private int upto;
     private int docID = -1;
     private int posUpto;
-    private boolean gotPayload;
     private int[] curPositions;
 
     public HighFreqDocsAndPositionsEnum(Bits liveDocs, boolean hasOffsets) {
@@ -2076,7 +2049,6 @@ public class DirectPostingsFormat extends PostingsFormat {
     @Override
     public int nextPosition() {
       posUpto += posJump;
-      gotPayload = false;
       return curPositions[posUpto];
     }
 
@@ -2210,21 +2182,22 @@ public class DirectPostingsFormat extends PostingsFormat {
       }
     }
 
-    @Override
-    public boolean hasPayload() {
-      return !gotPayload && payloads != null && payloads[upto][posUpto/(hasOffsets ? 3 : 1)] != null;
-    }
-
     private final BytesRef payload = new BytesRef();
 
     @Override
     public BytesRef getPayload() {
-      final byte[] payloadBytes = payloads[upto][posUpto/(hasOffsets ? 3:1)];
-      payload.bytes = payloadBytes;
-      payload.length = payloadBytes.length;
-      payload.offset = 0;
-      gotPayload = true;
-      return payload;
+      if (payloads == null) {
+        return null;
+      } else {
+        final byte[] payloadBytes = payloads[upto][posUpto/(hasOffsets ? 3:1)];
+        if (payloadBytes == null) {
+          return null;
+        }
+        payload.bytes = payloadBytes;
+        payload.length = payloadBytes.length;
+        payload.offset = 0;
+        return payload;
+      }
     }
   }
 }

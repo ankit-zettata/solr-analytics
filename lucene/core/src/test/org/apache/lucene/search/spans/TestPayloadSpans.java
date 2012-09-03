@@ -67,12 +67,12 @@ public class TestPayloadSpans extends LuceneTestCase {
     SpanTermQuery stq;
     Spans spans;
     stq = new SpanTermQuery(new Term(PayloadHelper.FIELD, "seventy"));
-    spans = MultiSpansWrapper.wrap(indexReader.getTopReaderContext(), stq);
+    spans = MultiSpansWrapper.wrap(indexReader.getContext(), stq);
     assertTrue("spans is null and it shouldn't be", spans != null);
     checkSpans(spans, 100, 1, 1, 1);
 
     stq = new SpanTermQuery(new Term(PayloadHelper.NO_PAYLOAD_FIELD, "seventy"));  
-    spans = MultiSpansWrapper.wrap(indexReader.getTopReaderContext(), stq);
+    spans = MultiSpansWrapper.wrap(indexReader.getContext(), stq);
     assertTrue("spans is null and it shouldn't be", spans != null);
     checkSpans(spans, 100, 0, 0, 0);
   }
@@ -83,7 +83,7 @@ public class TestPayloadSpans extends LuceneTestCase {
     SpanFirstQuery sfq;
     match = new SpanTermQuery(new Term(PayloadHelper.FIELD, "one"));
     sfq = new SpanFirstQuery(match, 2);
-    Spans spans = MultiSpansWrapper.wrap(indexReader.getTopReaderContext(), sfq);
+    Spans spans = MultiSpansWrapper.wrap(indexReader.getContext(), sfq);
     checkSpans(spans, 109, 1, 1, 1);
     //Test more complicated subclause
     SpanQuery[] clauses = new SpanQuery[2];
@@ -91,11 +91,11 @@ public class TestPayloadSpans extends LuceneTestCase {
     clauses[1] = new SpanTermQuery(new Term(PayloadHelper.FIELD, "hundred"));
     match = new SpanNearQuery(clauses, 0, true);
     sfq = new SpanFirstQuery(match, 2);
-    checkSpans(MultiSpansWrapper.wrap(indexReader.getTopReaderContext(), sfq), 100, 2, 1, 1);
+    checkSpans(MultiSpansWrapper.wrap(indexReader.getContext(), sfq), 100, 2, 1, 1);
 
     match = new SpanNearQuery(clauses, 0, false);
     sfq = new SpanFirstQuery(match, 2);
-    checkSpans(MultiSpansWrapper.wrap(indexReader.getTopReaderContext(), sfq), 100, 2, 1, 1);
+    checkSpans(MultiSpansWrapper.wrap(indexReader.getContext(), sfq), 100, 2, 1, 1);
     
   }
   
@@ -119,7 +119,7 @@ public class TestPayloadSpans extends LuceneTestCase {
     writer.close();
     
 
-    checkSpans(MultiSpansWrapper.wrap(reader.getTopReaderContext(), snq), 1,new int[]{2});
+    checkSpans(MultiSpansWrapper.wrap(reader.getContext(), snq), 1,new int[]{2});
     reader.close();
     directory.close();
   }
@@ -256,7 +256,7 @@ public class TestPayloadSpans extends LuceneTestCase {
                                                      newIndexWriterConfig(TEST_VERSION_CURRENT, new TestPayloadAnalyzer()));
 
     Document doc = new Document();
-    doc.add(new TextField("content", new StringReader("a b c d e f g h i j a k"), Field.Store.NO));
+    doc.add(new TextField("content", new StringReader("a b c d e f g h i j a k")));
     writer.addDocument(doc);
 
     IndexReader reader = writer.getReader();
@@ -293,7 +293,7 @@ public class TestPayloadSpans extends LuceneTestCase {
                                                      newIndexWriterConfig(TEST_VERSION_CURRENT, new TestPayloadAnalyzer()));
 
     Document doc = new Document();
-    doc.add(new TextField("content", new StringReader("a b a d k f a h i k a k"), Field.Store.NO));
+    doc.add(new TextField("content", new StringReader("a b a d k f a h i k a k")));
     writer.addDocument(doc);
     IndexReader reader = writer.getReader();
     IndexSearcher is = newSearcher(reader);
@@ -328,7 +328,7 @@ public class TestPayloadSpans extends LuceneTestCase {
                                                      newIndexWriterConfig(TEST_VERSION_CURRENT, new TestPayloadAnalyzer()));
 
     Document doc = new Document();
-    doc.add(new TextField("content", new StringReader("j k a l f k k p a t a k l k t a"), Field.Store.NO));
+    doc.add(new TextField("content", new StringReader("j k a l f k k p a t a k l k t a")));
     writer.addDocument(doc);
     IndexReader reader = writer.getReader();
     IndexSearcher is = newSearcher(reader);

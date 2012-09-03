@@ -122,7 +122,7 @@ public class FuzzyTermsEnum extends TermsEnum {
     this.realPrefixLength = prefixLength > termLength ? termLength : prefixLength;
     // if minSimilarity >= 1, we treat it as number of edits
     if (minSimilarity >= 1f) {
-      this.minSimilarity = 1 - (minSimilarity+1) / this.termLength;
+      this.minSimilarity = 0; // just driven by number of edits
       maxEdits = (int) minSimilarity;
       raw = true;
     } else {
@@ -272,14 +272,14 @@ public class FuzzyTermsEnum extends TermsEnum {
   }
   
   @Override
-  public DocsEnum docs(Bits liveDocs, DocsEnum reuse, boolean needsFreqs) throws IOException {
-    return actualEnum.docs(liveDocs, reuse, needsFreqs);
+  public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
+    return actualEnum.docs(liveDocs, reuse, flags);
   }
   
   @Override
   public DocsAndPositionsEnum docsAndPositions(Bits liveDocs,
-                                               DocsAndPositionsEnum reuse, boolean needsOffsets) throws IOException {
-    return actualEnum.docsAndPositions(liveDocs, reuse, needsOffsets);
+                                               DocsAndPositionsEnum reuse, int flags) throws IOException {
+    return actualEnum.docsAndPositions(liveDocs, reuse, flags);
   }
   
   @Override
@@ -398,12 +398,17 @@ public class FuzzyTermsEnum extends TermsEnum {
     return scale_factor;
   }
   
-  /** @lucene.internal */
+  /**
+   * reuses compiled automata across different segments,
+   * because they are independent of the index
+   * @lucene.internal */
   public static interface LevenshteinAutomataAttribute extends Attribute {
     public List<CompiledAutomaton> automata();
   }
     
-  /** @lucene.internal */
+  /** 
+   * Stores compiled automata as a list (indexed by edit distance)
+   * @lucene.internal */
   public static final class LevenshteinAutomataAttributeImpl extends AttributeImpl implements LevenshteinAutomataAttribute {
     private final List<CompiledAutomaton> automata = new ArrayList<CompiledAutomaton>();
       

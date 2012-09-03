@@ -47,6 +47,8 @@ class ConnectionManager implements Watcher {
 
   private OnReconnect onReconnect;
 
+  private volatile boolean isClosed = false;
+
   public ConnectionManager(String name, SolrZkClient client, String zkServerAddress, int zkClientTimeout, ZkClientConnectionStrategy strat, OnReconnect onConnect) {
     this.name = name;
     this.client = client;
@@ -68,6 +70,10 @@ class ConnectionManager implements Watcher {
       log.info("Watcher " + this + " name:" + name + " got event " + event
           + " path:" + event.getPath() + " type:" + event.getType());
     }
+    
+    if (isClosed) {
+      return;
+    }
 
     state = event.getState();
     if (state == KeeperState.SyncConnected) {
@@ -81,11 +87,32 @@ class ConnectionManager implements Watcher {
         connectionStrategy.reconnect(zkServerAddress, zkClientTimeout, this,
             new ZkClientConnectionStrategy.ZkUpdate() {
               @Override
-              public void update(SolrZooKeeper keeper)
-                  throws InterruptedException, TimeoutException {
+              public void update(SolrZooKeeper keeper) {
+                // if keeper does not replace oldKeeper we must be sure to close it
                 synchronized (connectionStrategy) {
-                  waitForConnected(SolrZkClient.DEFAULT_CLIENT_CONNECT_TIMEOUT);
-                  client.updateKeeper(keeper);
+                  try {
+                    waitForConnected(SolrZkClient.DEFAULT_CLIENT_CONNECT_TIMEOUT);
+                  } catch (InterruptedException e1) {
+                    closeKeeper(keeper);
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Giving up on connecting - we were interrupted", e1);
+                  } catch (Exception e1) {
+                    closeKeeper(keeper);
+                    throw new RuntimeException(e1);
+                  }
+                  
+                  try {
+                    client.updateKeeper(keeper);
+                  } catch (InterruptedException e) {
+                    closeKeeper(keeper);
+                    Thread.currentThread().interrupt();
+                    // we must have been asked to stop
+                    throw new RuntimeException(e);
+                  } catch(Throwable t) {
+                    closeKeeper(keeper);
+                    throw new RuntimeException(t);
+                  }
+      
                   if (onReconnect != null) {
                     onReconnect.command();
                   }
@@ -95,6 +122,7 @@ class ConnectionManager implements Watcher {
                 }
                 
               }
+
             });
       } catch (Exception e) {
         SolrException.log(log, "", e);
@@ -109,7 +137,13 @@ class ConnectionManager implements Watcher {
   }
 
   public synchronized boolean isConnected() {
-    return connected;
+    return !isClosed && connected;
+  }
+  
+  // we use a volatile rather than sync
+  // to avoid deadlock on shutdown
+  public void close() {
+    this.isClosed = true;
   }
 
   public synchronized KeeperState state() {
@@ -119,9 +153,12 @@ class ConnectionManager implements Watcher {
   public synchronized void waitForConnected(long waitForConnection)
       throws InterruptedException, TimeoutException {
     long expire = System.currentTimeMillis() + waitForConnection;
-    long left = waitForConnection;
+    long left = 1;
     while (!connected && left > 0) {
-      wait(left);
+      if (isClosed) {
+        break;
+      }
+      wait(500);
       left = expire - System.currentTimeMillis();
     }
     if (!connected) {
@@ -139,6 +176,18 @@ class ConnectionManager implements Watcher {
     }
     if (connected) {
       throw new TimeoutException("Did not disconnect");
+    }
+  }
+
+  private void closeKeeper(SolrZooKeeper keeper) {
+    try {
+      keeper.close();
+    } catch (InterruptedException e) {
+      // Restore the interrupted status
+      Thread.currentThread().interrupt();
+      log.error("", e);
+      throw new ZooKeeperException(SolrException.ErrorCode.SERVER_ERROR,
+          "", e);
     }
   }
 }

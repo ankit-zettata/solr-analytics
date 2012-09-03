@@ -53,12 +53,9 @@ public class FieldFacetStats {
   final List<HashMap<String, Integer>> facetStatsTerms;
 
   private final BytesRef tempBR = new BytesRef();
-  
-  private final boolean minimal;
 
-  public FieldFacetStats(String name, FieldCache.DocTermsIndex si, SchemaField field_sf, SchemaField facet_sf, int numStatsTerms, boolean minimal) {
+  public FieldFacetStats(String name, FieldCache.DocTermsIndex si, SchemaField field_sf, SchemaField facet_sf, int numStatsTerms) {
     this.name = name;
-    this.minimal = minimal;
     this.si = si;
     this.field_sf = field_sf;
     this.facet_sf = facet_sf;
@@ -93,10 +90,10 @@ public class FieldFacetStats {
     int arrIdx = term - startTermIndex;
     if (arrIdx >= 0 && arrIdx < nTerms) {
       final BytesRef br = si.lookup(term, tempBR);
-      String key = (br == null) ?null : facet_sf.getType().indexedToReadable(br.utf8ToString());
+      String key = (br == null)?null:facet_sf.getType().indexedToReadable(br.utf8ToString());
       StatsValues stats = facetStatsValues.get(key);
       if (stats == null) {
-        stats = StatsValuesFactory.createStatsValues(field_sf, this.minimal);
+        stats = StatsValuesFactory.createStatsValues(field_sf);
         facetStatsValues.put(key, stats);
       }
 
@@ -142,7 +139,7 @@ public class FieldFacetStats {
       String key = (String) pairs.getKey();
       StatsValues facetStats = facetStatsValues.get(key);
       if (facetStats == null) {
-        facetStats = StatsValuesFactory.createStatsValues(field_sf, true);
+        facetStats = StatsValuesFactory.createStatsValues(field_sf);
         facetStatsValues.put(key, facetStats);
       }
       Integer count = (Integer) pairs.getValue();

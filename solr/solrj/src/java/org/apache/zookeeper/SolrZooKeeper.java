@@ -19,13 +19,23 @@ package org.apache.zookeeper;
 
 import java.io.IOException;
 import java.nio.channels.SocketChannel;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 // we use this class to expose nasty stuff for tests
 public class SolrZooKeeper extends ZooKeeper {
+  List<Thread> spawnedThreads = new CopyOnWriteArrayList<Thread>();
+  
+  // for test debug
+  //static Map<SolrZooKeeper,Exception> clients = new ConcurrentHashMap<SolrZooKeeper,Exception>();
 
   public SolrZooKeeper(String connectString, int sessionTimeout,
       Watcher watcher) throws IOException {
     super(connectString, sessionTimeout, watcher);
+    //clients.put(this, new RuntimeException());
   }
   
   public ClientCnxn getConnection() {
@@ -38,21 +48,43 @@ public class SolrZooKeeper extends ZooKeeper {
    * @param ms the number of milliseconds to pause.
    */
   public void pauseCnxn(final long ms) {
-    new Thread() {
+    Thread t = new Thread() {
       public void run() {
-        synchronized (cnxn) {
-          try {
+        try {
+          synchronized (cnxn) {
             try {
               ((SocketChannel) cnxn.sendThread.sockKey.channel()).socket()
                   .close();
             } catch (Exception e) {
-
             }
             Thread.sleep(ms);
-          } catch (InterruptedException e) {}
-        }
+          }
+
+          // Wait a long while to make sure we properly clean up these threads.
+          Thread.sleep(500000);
+        } catch (InterruptedException e) {}
       }
-    }.start();
+    };
+    t.start();
+    spawnedThreads.add(t);
   }
 
+  @Override
+  public synchronized void close() throws InterruptedException {
+    //clients.remove(this);
+    for (Thread t : spawnedThreads) {
+      t.interrupt();
+    }
+    super.close();
+  }
+  
+//  public static void assertCloses() {
+//    if (clients.size() > 0) {
+//      Iterator<Exception> stacktraces = clients.values().iterator();
+//      Exception cause = null;
+//      cause = stacktraces.next();
+//      throw new RuntimeException("Found a bad one!", cause);
+//    }
+//  }
+  
 }

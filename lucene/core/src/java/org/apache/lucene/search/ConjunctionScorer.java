@@ -27,17 +27,15 @@ import java.util.Comparator;
 class ConjunctionScorer extends Scorer {
   
   private final Scorer[] scorers;
-  private final float coord;
   private int lastDoc = -1;
 
-  public ConjunctionScorer(Weight weight, float coord, Collection<Scorer> scorers) throws IOException {
-    this(weight, coord, scorers.toArray(new Scorer[scorers.size()]));
+  public ConjunctionScorer(Weight weight, Collection<Scorer> scorers) throws IOException {
+    this(weight, scorers.toArray(new Scorer[scorers.size()]));
   }
 
-  public ConjunctionScorer(Weight weight, float coord, Scorer... scorers) throws IOException {
+  public ConjunctionScorer(Weight weight, Scorer... scorers) throws IOException {
     super(weight);
     this.scorers = scorers;
-    this.coord = coord;
     
     for (int i = 0; i < scorers.length; i++) {
       if (scorers[i].nextDoc() == NO_MORE_DOCS) {
@@ -131,11 +129,12 @@ class ConjunctionScorer extends Scorer {
   
   @Override
   public float score() throws IOException {
+    // TODO: sum into a double and cast to float if we ever send required clauses to BS1
     float sum = 0.0f;
     for (int i = 0; i < scorers.length; i++) {
       sum += scorers[i].score();
     }
-    return sum * coord;
+    return sum;
   }
 
   @Override

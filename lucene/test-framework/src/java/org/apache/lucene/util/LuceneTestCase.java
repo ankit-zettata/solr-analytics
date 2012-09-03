@@ -46,7 +46,13 @@ import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 import com.carrotsearch.randomizedtesting.*;
 import com.carrotsearch.randomizedtesting.annotations.*;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakAction.Action;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakGroup.Group;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies.Consequence;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.carrotsearch.randomizedtesting.rules.NoClassHooksShadowingRule;
+import com.carrotsearch.randomizedtesting.rules.NoInstanceHooksOverridesRule;
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesInvariantRule;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
@@ -114,7 +120,15 @@ import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAs
   RunListenerPrintReproduceInfo.class
 })
 @SeedDecorators({MixWithSuiteName.class}) // See LUCENE-3995 for rationale.
-@ThreadLeaks(failTestIfLeaking = false)
+@ThreadLeakScope(Scope.SUITE)
+@ThreadLeakGroup(Group.MAIN)
+@ThreadLeakAction({Action.WARN, Action.INTERRUPT})
+@ThreadLeakLingering(linger = 20000) // Wait long for leaked threads to complete before failure. zk needs this.
+@ThreadLeakZombies(Consequence.IGNORE_REMAINING_TESTS)
+@TimeoutSuite(millis = 2 * TimeUnits.HOUR)
+@ThreadLeakFilters(defaultFilters = true, filters = {
+    QuickPatchThreadsFilter.class
+})
 public abstract class LuceneTestCase extends Assert {
 
   // --------------------------------------------------------------------
@@ -125,6 +139,7 @@ public abstract class LuceneTestCase extends Assert {
   public static final String SYSPROP_WEEKLY = "tests.weekly";
   public static final String SYSPROP_AWAITSFIX = "tests.awaitsfix";
   public static final String SYSPROP_SLOW = "tests.slow";
+  public static final String SYSPROP_BADAPPLES = "tests.badapples";
 
   /** @see #ignoreAfterMaxFailures*/
   private static final String SYSPROP_MAXFAILURES = "tests.maxfailures";
@@ -171,7 +186,21 @@ public abstract class LuceneTestCase extends Assert {
   @Retention(RetentionPolicy.RUNTIME)
   @TestGroup(enabled = true, sysProperty = SYSPROP_SLOW)
   public @interface Slow {}
-  
+
+  /**
+   * Annotation for tests that fail frequently. You can disable them
+   * if you want to run a long build and not stop on something that
+   * is a known problem.
+   * <pre>
+   * -Dtests.badapples=false
+   * </pre>
+   */
+  @Documented
+  @Inherited
+  @Retention(RetentionPolicy.RUNTIME)
+  @TestGroup(enabled = true, sysProperty = SYSPROP_BADAPPLES)
+  public @interface BadApple {}
+
   /**
    * Annotation for test classes that should avoid certain codec types
    * (because they are expensive, for example).
@@ -183,7 +212,6 @@ public abstract class LuceneTestCase extends Assert {
   public @interface SuppressCodecs {
     String[] value();
   }
-
   
   // -----------------------------------------------------------------
   // Truly immutable fields and constants, initialized once and valid 
@@ -278,6 +306,13 @@ public abstract class LuceneTestCase extends Assert {
     CORE_DIRECTORIES.add("RAMDirectory");
   };
   
+  protected static final Set<String> doesntSupportOffsets = new HashSet<String>(Arrays.asList( 
+    "Lucene3x",
+    "MockFixedIntBlock",
+    "MockVariableIntBlock",
+    "MockSep",
+    "MockRandom"
+  ));
   
   // -----------------------------------------------------------------
   // Fields initialized in class or instance rules.
@@ -341,12 +376,16 @@ public abstract class LuceneTestCase extends Assert {
     .around(ignoreAfterMaxFailures)
     .around(suiteFailureMarker)
     .around(new TestRuleAssertionsRequired())
-    .around(new TestRuleNoStaticHooksShadowing())
-    .around(new TestRuleNoInstanceHooksOverrides())
+    .around(new NoClassHooksShadowingRule())
+    .around(new NoInstanceHooksOverridesRule() {
+      @Override
+      protected boolean verify(Method key) {
+        String name = key.getName();
+        return !(name.equals("setUp") || name.equals("tearDown"));
+      }
+    })
     .around(new SystemPropertiesInvariantRule(IGNORED_INVARIANT_PROPERTIES))
-    .around(new TestRuleIcuHack())
     .around(classNameRule = new TestRuleStoreClassName())
-    .around(new TestRuleReportUncaughtExceptions())
     .around(classEnvRule = new TestRuleSetupAndRestoreClassEnv());
 
 
@@ -373,7 +412,6 @@ public abstract class LuceneTestCase extends Assert {
     .outerRule(testFailureMarker)
     .around(ignoreAfterMaxFailures)
     .around(threadAndTestNameRule)
-    .around(new TestRuleReportUncaughtExceptions())
     .around(new SystemPropertiesInvariantRule(IGNORED_INVARIANT_PROPERTIES))
     .around(new TestRuleSetupAndRestoreInstanceEnv())
     .around(new TestRuleFieldCacheSanity())
@@ -467,10 +505,10 @@ public abstract class LuceneTestCase extends Assert {
    * do tests on that segment's reader. This is an utility method to help them.
    */
   public static SegmentReader getOnlySegmentReader(DirectoryReader reader) {
-    List<? extends IndexReader> subReaders = reader.getSequentialSubReaders();
+    List<AtomicReaderContext> subReaders = reader.leaves();
     if (subReaders.size() != 1)
       throw new IllegalArgumentException(reader + " has " + subReaders.size() + " segments instead of exactly one");
-    final IndexReader r = subReaders.get(0);
+    final AtomicReader r = subReaders.get(0).reader();
     assertTrue(r instanceof SegmentReader);
     return (SegmentReader) r;
   }
@@ -728,6 +766,11 @@ public abstract class LuceneTestCase extends Assert {
     } else {
       logmp.setMergeFactor(_TestUtil.nextInt(r, 10, 50));
     }
+    logmp.setUseCompoundFile(r.nextBoolean());
+    logmp.setNoCFSRatio(0.1 + r.nextDouble()*0.8);
+    if (rarely()) {
+      logmp.setMaxCFSSegmentSizeMB(0.2 + r.nextDouble() * 2.0);
+    }
     return logmp;
   }
 
@@ -754,6 +797,9 @@ public abstract class LuceneTestCase extends Assert {
     }
     tmp.setUseCompoundFile(r.nextBoolean());
     tmp.setNoCFSRatio(0.1 + r.nextDouble()*0.8);
+    if (rarely()) {
+      tmp.setMaxCFSSegmentSizeMB(0.2 + r.nextDouble() * 2.0);
+    }
     tmp.setReclaimDeletesWeight(r.nextDouble()*4);
     return tmp;
   }
@@ -929,6 +975,10 @@ public abstract class LuceneTestCase extends Assert {
       }
       if (!newType.storeTermVectorPositions()) {
         newType.setStoreTermVectorPositions(random.nextBoolean());
+        
+        if (newType.storeTermVectorPositions() && !newType.storeTermVectorPayloads() && !PREFLEX_IMPERSONATION_IS_ACTIVE) {
+          newType.setStoreTermVectorPayloads(random.nextBoolean());
+        }
       }
     }
 
@@ -1129,7 +1179,7 @@ public abstract class LuceneTestCase extends Assert {
       if (maybeWrap) {
         r = maybeWrapReader(r);
       }
-      IndexSearcher ret = random.nextBoolean() ? new AssertingIndexSearcher(random, r) : new AssertingIndexSearcher(random, r.getTopReaderContext());
+      IndexSearcher ret = random.nextBoolean() ? new AssertingIndexSearcher(random, r) : new AssertingIndexSearcher(random, r.getContext());
       ret.setSimilarity(classEnvRule.similarity);
       return ret;
     } else {
@@ -1158,7 +1208,7 @@ public abstract class LuceneTestCase extends Assert {
       }
       IndexSearcher ret = random.nextBoolean() 
           ? new AssertingIndexSearcher(random, r, ex)
-          : new AssertingIndexSearcher(random, r.getTopReaderContext(), ex);
+          : new AssertingIndexSearcher(random, r.getContext(), ex);
       ret.setSimilarity(classEnvRule.similarity);
       return ret;
     }

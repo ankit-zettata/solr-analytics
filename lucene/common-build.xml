@@ -60,6 +60,7 @@
   <property name="ivy.resource" value="org/apache/ivy/ant/antlib.xml" />
   <available resource="${ivy.resource}" property="ivy.available" />
   <property name="ivy.default.configuration" value="*"/>
+  <property name="ivy.sync" value="true"/>
 
   <property name="junit.jar" value="junit-4.10.jar"/>
   <property name="junit-location.jar" value="${common.dir}/test-framework/lib/${junit.jar}"/>
@@ -87,7 +88,7 @@
   <property name="tests.timezone" value="random" />
   <property name="tests.directory" value="random" />
   <property name="tests.linedocsfile" value="europarl.lines.txt.gz" />
-  <property name="tests.loggingfile" value="/dev/null"/>
+  <property name="tests.loggingfile" value="${common.dir}/tools/junit4/logging.properties"/>
   <property name="tests.nightly" value="false" />
   <property name="tests.weekly" value="false" />
   <property name="tests.slow" value="true" />
@@ -134,7 +135,7 @@
   <property name="javac.target" value="1.6"/>
   <property name="javac.source.backwards" value="1.6"/>
   <property name="javac.target.backwards" value="1.6"/>
-  <property name="javac.args" value="-Xlint -Xlint:-deprecation -Xlint:-serial"/>
+  <property name="javac.args" value="-Xlint -Xlint:-deprecation -Xlint:-serial -Xlint:-options"/>
   <property name="bootclasspath" value=""/>
   <property name="javadoc.link" value="http://download.oracle.com/javase/6/docs/api/"/>
   <property name="javadoc.link.junit" value="http://junit.sourceforge.net/javadoc/"/>
@@ -294,7 +295,7 @@
     <!-- todo, make this a property or something. 
          only special cases need bundles -->
     <ivy:retrieve type="jar,bundle" log="download-only" 
-                  conf="${ivy.default.configuration}"/>
+                  conf="${ivy.default.configuration}" sync="${ivy.sync}"/>
   </target>
 
   <property name="ivy_install_path" location="${user.home}/.ant/lib" />
@@ -399,17 +400,17 @@
       JavaCC not found.
       JavaCC Home: ${javacc.home}
 
-      Please download and install JavaCC 4.1 from:
+      Please download and install JavaCC 5.0 from:
 
       &lt;http://javacc.dev.java.net&gt;
 
       Then, create a build.properties file either in your home
       directory, or within the Lucene directory and set the javacc.home
       property to the path where JavaCC is installed. For example,
-      if you installed JavaCC in /usr/local/java/javacc-4.1, then set the
+      if you installed JavaCC in /usr/local/java/javacc-5.0, then set the
       javacc.home property to:
 
-      javacc.home=/usr/local/java/javacc-4.1
+      javacc.home=/usr/local/java/javacc-5.0
 
       If you get an error like the one below, then you have not installed
       things correctly. Please check all your paths and try again.
@@ -507,6 +508,9 @@
     <attribute name="spec.version"/>
     <attribute name="manifest.file" default="${manifest.file}"/>
     <sequential>
+      <!-- If possible, include the svnversion -->
+      <exec dir="." executable="${svnversion.exe}" outputproperty="svnversion" failifexecutionfails="false"/>
+
       <manifest file="@{manifest.file}">
         <!--
         http://java.sun.com/j2se/1.5.0/docs/guide/jar/jar.html#JAR%20Manifest
@@ -557,12 +561,6 @@
     <attribute name="manifest.file" default="${manifest.file}"/>
     <element name="nested" optional="true" implicit="true"/>
     <sequential>
-      <!-- If possible, include the svnversion -->
-      <exec dir="." executable="${svnversion.exe}"
-            outputproperty="svnversion" failifexecutionfails="false">
-        <arg value="."/>
-      </exec>
-      
       <build-manifest title="@{title}"
                       implementation.title="@{implementation.title}"
                       spec.version="@{spec.version}"
@@ -699,15 +697,23 @@
   <condition property="tests.method" value="${testmethod}*">
     <isset property="testmethod" />
   </condition>
+
   <condition property="tests.showSuccess" value="true">
     <or>
       <isset property="tests.class" />
       <isset property="tests.method" />
     </or>
   </condition>
-  <!-- default -->
   <property name="tests.showSuccess" value="false"/>
-  
+
+  <condition property="tests.showOutput" value="always">
+    <or>
+      <isset property="tests.class" />
+      <isset property="tests.method" />
+      <istrue value="${tests.showSuccess}"/>
+    </or>
+  </condition>
+  <property name="tests.showOutput" value="onerror"/>
 
   <!-- Test macro using junit4. -->
   <macrodef name="test-macro" description="Executes junit tests.">
@@ -841,7 +847,8 @@
             <sysproperty key="tests.multiplier" value="@{tests.multiplier}"/>
             
             <!-- Temporary directory in the cwd. -->
-            <sysproperty key="tempDir" value="."/>
+            <sysproperty key="tempDir" value="." />
+            <sysproperty key="java.io.tmpdir" value="." />
 
             <sysproperty key="lucene.version" value="${dev.version}"/>
 
@@ -853,6 +860,7 @@
             <syspropertyset>
                 <propertyref prefix="tests.maxfailures" />
                 <propertyref prefix="tests.failfast" />
+                <propertyref prefix="tests.badapples" />
             </syspropertyset>
 
             <!-- Pass randomized settings to the forked JVM. -->
@@ -874,8 +882,7 @@
                 <junit4:report-text
                     showThrowable="true" 
                     showStackTraces="true" 
-                    showOutputStream="true" 
-                    showErrorStream="true"
+                    showOutput="${tests.showOutput}" 
 
                     showStatusOk="${tests.showSuccess}"
                     showStatusError="${tests.showError}"
@@ -895,8 +902,7 @@
                     file="@{junit.output.dir}/tests-report.txt"
                     showThrowable="true" 
                     showStackTraces="true" 
-                    showOutputStream="true" 
-                    showErrorStream="true"
+                    showOutput="always"
 
                     showStatusOk="true"
                     showStatusError="true"
@@ -912,8 +918,7 @@
                     file="@{junit.output.dir}/tests-failures.txt"
                     showThrowable="true" 
                     showStackTraces="true" 
-                    showOutputStream="true" 
-                    showErrorStream="true"
+                    showOutput="onerror" 
 
                     showStatusOk="false"
                     showStatusError="true"
@@ -928,8 +933,13 @@
                      the slowest tests or for reuse in balancing). -->
                 <junit4:report-execution-times file="@{junit.output.dir}/tests-timehints.txt" historyLength="5" />
 
-                <junit4:report-ant-xml dir="@{junit.output.dir}" />
-                <junit4:report-json file="@{junit.output.dir}/tests-report-${ant.project.name}/index.html" />
+                <!-- ANT-compatible XMLs for jenkins records etc. -->
+                <junit4:report-ant-xml dir="@{junit.output.dir}" outputStreams="no" />
+
+                <!--
+                Enable if you wish to have a nice HTML5 report.
+                <junit4:report-json file="@{junit.output.dir}/tests-report-${ant.project.name}/index.html" outputStreams="no" />
+                -->
             </listeners>
 
             <!-- Input test classes. -->
@@ -1535,10 +1545,10 @@ ${tests-output}/junit4-*.suites     - per-JVM executed suites
             description="Populates properties svn.URL and svn.Revision using 'svn info'.">
     <attribute name="directory"/>
     <sequential>
-      <exec dir="." executable="${svnversion.exe}" outputproperty="svn.ver"/>
+      <exec dir="@{directory}" executable="${svnversion.exe}" outputproperty="svn.ver"/>
       <fail message="A subversion checkout is required for this target">
         <condition>
-          <equals arg1="${svn.ver}" arg2="exported"/>
+          <matches pattern="(exported|unversioned.*)" string="${svn.ver}" casesensitive="false"/>
         </condition>
       </fail>
       <exec dir="@{directory}" executable="${svn.exe}" outputproperty="svn.info" failonerror="true">
@@ -1563,6 +1573,43 @@ ${tests-output}/junit4-*.suites     - per-JVM executed suites
       <echo>Building checksums for '@{file}'</echo>
       <checksum file="@{file}" algorithm="md5" format="MD5SUM" forceoverwrite="yes" readbuffersize="65536"/>
       <checksum file="@{file}" algorithm="sha1" format="MD5SUM" forceoverwrite="yes" readbuffersize="65536"/>
+    </sequential>
+  </macrodef>
+
+  <macrodef name="jar-checksum-macro">
+      <attribute name="srcdir"/>
+      <attribute name="dstdir"/>
+    <sequential>
+      <delete>
+        <fileset dir="@{dstdir}">
+          <include name="**/*.jar.sha1"/>
+        </fileset>
+      </delete>
+
+      <!-- checksum task does not have a flatten=true -->
+      <tempfile property="jar-checksum.temp.dir"/>
+      <mkdir dir="${jar-checksum.temp.dir}"/>
+      <copy todir="${jar-checksum.temp.dir}" flatten="true">
+        <fileset dir="@{srcdir}">
+          <include name="**/*.jar"/>
+          <!-- todo make this something passed into the macro and not some hardcoded set -->
+          <exclude name="build/**"/>
+          <exclude name="dist/**"/>
+          <exclude name="package/**"/>
+          <exclude name="example/exampledocs/**"/>
+        </fileset>
+      </copy>
+
+      <checksum algorithm="SHA1" fileext=".sha1" todir="@{dstdir}">
+        <fileset dir="${jar-checksum.temp.dir}"/>
+      </checksum>
+
+      <delete dir="${jar-checksum.temp.dir}"/>
+
+      <fixcrlf 
+        srcdir="@{dstdir}"
+        includes="**/*.jar.sha1"
+        eol="lf" fixlast="true" encoding="US-ASCII" />
     </sequential>
   </macrodef>
 
@@ -1648,7 +1695,7 @@ ${tests-output}/junit4-*.suites     - per-JVM executed suites
     <element name="nested" optional="false" implicit="true"/>
     <sequential>
       <copy todir="@{todir}" flatten="@{flatten}" overwrite="@{overwrite}" verbose="true"
-        preservelastmodified="false" encoding="UTF-8" outputencoding="UTF-8"
+        preservelastmodified="false" encoding="UTF-8" outputencoding="UTF-8" taskname="pegdown"
       >
         <filterchain>
           <tokenfilter>
@@ -1700,7 +1747,7 @@ ${tests-output}/junit4-*.suites     - per-JVM executed suites
        <attribute name="dir"/>
        <attribute name="level" default="class"/>
      <sequential>
-       <exec dir="." executable="${python.exe}" failonerror="true">
+       <exec dir="." executable="${python32.exe}" failonerror="true">
          <arg value="${dev-tools.dir}/scripts/checkJavaDocs.py"/>
          <arg value="@{dir}"/>
          <arg value="@{level}"/>

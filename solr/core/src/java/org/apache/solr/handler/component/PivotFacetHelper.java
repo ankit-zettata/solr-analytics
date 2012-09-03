@@ -51,29 +51,26 @@ import org.apache.solr.util.PivotListEntry;
 
 /**
  * This is thread safe
- * 
  * @since solr 4.0
  */
-public class PivotFacetHelper {
-  
+public class PivotFacetHelper
+{
   protected NamedListHelper namedListHelper = NamedListHelper.INSTANCE;
   
   protected Comparator<NamedList<Object>> namedListCountComparator = new PivotNamedListCountComparator();
   
   /**
-   * Designed to be overridden by subclasses that provide different faceting
-   * implementations. TODO: Currently this is returning a SimpleFacets object,
-   * but those capabilities would be better as an extracted abstract class or
-   * interface.
+   * Designed to be overridden by subclasses that provide different faceting implementations.
+   * TODO: Currently this is returning a SimpleFacets object, but those capabilities would
+   *       be better as an extracted abstract class or interface.
    */
-  protected SimpleFacets getFacetImplementation(SolrQueryRequest req,
-      DocSet docs, SolrParams params) {
+  protected SimpleFacets getFacetImplementation(SolrQueryRequest req, DocSet docs, SolrParams params) {
     return new SimpleFacets(req, docs, params);
   }
   
-  public SimpleOrderedMap<List<NamedList<Object>>> process(ResponseBuilder rb,
-      SolrParams params, String[] pivots) throws IOException {
-    if (!rb.doFacets || pivots == null) return null;
+  public SimpleOrderedMap<List<NamedList<Object>>> process(ResponseBuilder rb, SolrParams params, String[] pivots) throws IOException {
+    if (!rb.doFacets || pivots == null) 
+      return null;
     
     int minMatch = params.getInt(FacetParams.FACET_PIVOT_MINCOUNT, 1);
     boolean distinct = params.getBool( FacetParams.FACET_PIVOT_DISTINCT, false);  // distinct pivot?
@@ -94,15 +91,15 @@ public class PivotFacetHelper {
       String[] fields = pivot.split(","); // only support two levels for now
       int depth = fields.length;
       
-      if (fields.length < 1) {
-        throw new SolrException(ErrorCode.BAD_REQUEST,
-            "Pivot Facet needs at least one field: " + pivot);
+      if( fields.length < 2 ) {
+        throw new SolrException( ErrorCode.BAD_REQUEST, 
+            "Pivot Facet needs at least two fields: "+pivot );
       }
       
       DocSet docs = rb.getResults().docSet;
       String field = fields[0];      
       Deque<String> fnames = new LinkedList<String>();
-      for (int i = fields.length - 1; i > 1; i--) {
+      for( int i=fields.length-1; i>1; i-- ) {
         fnames.push(fields[i]);
       }
       

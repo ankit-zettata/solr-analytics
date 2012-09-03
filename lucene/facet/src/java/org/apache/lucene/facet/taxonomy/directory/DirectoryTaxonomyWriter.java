@@ -29,6 +29,7 @@ import org.apache.lucene.facet.taxonomy.writercache.TaxonomyWriterCache;
 import org.apache.lucene.facet.taxonomy.writercache.cl2o.Cl2oTaxonomyWriterCache;
 import org.apache.lucene.facet.taxonomy.writercache.lru.LruTaxonomyWriterCache;
 import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocsEnum;
@@ -375,7 +376,7 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
    * returning the category's ordinal, or a negative number in case the
    * category does not yet exist in the taxonomy.
    */
-  protected int findCategory(CategoryPath categoryPath) throws IOException {
+  protected synchronized int findCategory(CategoryPath categoryPath) throws IOException {
     // If we can find the category in the cache, or we know the cache is
     // complete, we can return the response directly from it
     int res = cache.get(categoryPath);
@@ -409,14 +410,12 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
     DirectoryReader reader = readerManager.acquire();
     try {
       final BytesRef catTerm = new BytesRef(categoryPath.toString(delimiter));
-      int base = 0;
-      for (AtomicReader r : reader.getSequentialSubReaders()) {
-        DocsEnum docs = r.termDocsEnum(null, Consts.FULL, catTerm, false);
+      for (AtomicReaderContext ctx : reader.leaves()) {
+        DocsEnum docs = ctx.reader().termDocsEnum(null, Consts.FULL, catTerm, 0);
         if (docs != null) {
-          doc = docs.nextDoc() + base;
+          doc = docs.nextDoc() + ctx.docBase;
           break;
         }
-        base += r.maxDoc(); // we don't have deletions, so it's ok to call maxDoc
       }
     } finally {
       readerManager.release(reader);
@@ -452,14 +451,12 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
     DirectoryReader reader = readerManager.acquire();
     try {
       final BytesRef catTerm = new BytesRef(categoryPath.toString(delimiter, prefixLen));
-      int base = 0;
-      for (AtomicReader r : reader.getSequentialSubReaders()) {
-        DocsEnum docs = r.termDocsEnum(null, Consts.FULL, catTerm, false);
+      for (AtomicReaderContext ctx : reader.leaves()) {
+        DocsEnum docs = ctx.reader().termDocsEnum(null, Consts.FULL, catTerm, 0);
         if (docs != null) {
-          doc = docs.nextDoc() + base;
+          doc = docs.nextDoc() + ctx.docBase;
           break;
         }
-        base += r.maxDoc(); // we don't have deletions, so it's ok to call maxDoc
       }
     } finally {
       readerManager.release(reader);
@@ -474,12 +471,11 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
   @Override
   public int addCategory(CategoryPath categoryPath) throws IOException {
     ensureOpen();
-    // If the category is already in the cache and/or the taxonomy, we
-    // should return its existing ordinal
-    int res = findCategory(categoryPath);
+    // check the cache outside the synchronized block. this results in better
+    // concurrency when categories are there.
+    int res = cache.get(categoryPath);
     if (res < 0) {
-      // the category is neither in the cache nor in the index - following code
-      // cannot be executed in parallel.
+      // the category is not in the cache - following code cannot be executed in parallel.
       synchronized (this) {
         res = findCategory(categoryPath);
         if (res < 0) {
@@ -494,7 +490,6 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
       }
     }
     return res;
-
   }
 
   /**
@@ -754,9 +749,8 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
       CategoryPath cp = new CategoryPath();
       TermsEnum termsEnum = null;
       DocsEnum docsEnum = null;
-      int base = 0;
-      for (AtomicReader r : reader.getSequentialSubReaders()) {
-        Terms terms = r.terms(Consts.FULL);
+      for (AtomicReaderContext ctx : reader.leaves()) {
+        Terms terms = ctx.reader().terms(Consts.FULL);
         if (terms != null) { // cannot really happen, but be on the safe side
           termsEnum = terms.iterator(termsEnum);
           while (termsEnum.next() != null) {
@@ -769,8 +763,8 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
               // 'validation' checks.
               cp.clear();
               cp.add(t.utf8ToString(), delimiter);
-              docsEnum = termsEnum.docs(null, docsEnum, false);
-              boolean res = cache.put(cp, docsEnum.nextDoc() + base);
+              docsEnum = termsEnum.docs(null, docsEnum, 0);
+              boolean res = cache.put(cp, docsEnum.nextDoc() + ctx.docBase);
               assert !res : "entries should not have been evicted from the cache";
             } else {
               // the cache is full and the next put() will evict entries from it, therefore abort the iteration.
@@ -782,7 +776,6 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
         if (aborted) {
           break;
         }
-        base += r.maxDoc(); // we don't have any deletions, so we're ok
       }
     } finally {
       readerManager.release(reader);
@@ -847,8 +840,9 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
       int base = 0;
       TermsEnum te = null;
       DocsEnum docs = null;
-      for (AtomicReader ar : r.getSequentialSubReaders()) {
-        Terms terms = ar.terms(Consts.FULL);
+      for (final AtomicReaderContext ctx : r.leaves()) {
+        final AtomicReader ar = ctx.reader();
+        final Terms terms = ar.terms(Consts.FULL);
         te = terms.iterator(te);
         while (te.next() != null) {
           String value = te.term().utf8ToString();
@@ -861,7 +855,7 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
             // the findCategory() call above failed to find it.
             ordinal = addCategory(cp);
           }
-          docs = te.docs(null, docs, false);
+          docs = te.docs(null, docs, 0);
           ordinalMap.addMapping(docs.nextDoc() + base, ordinal);
         }
         base += ar.maxDoc(); // no deletions, so we're ok

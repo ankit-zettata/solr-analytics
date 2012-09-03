@@ -126,6 +126,13 @@ public class RequestWriter {
       write(req, os);
 
     }
+
+    @Override
+    public void close() throws IOException {
+      if (contentStream != null) {
+        contentStream.close();
+      }
+    }
   }
 
   protected boolean isNull(List l) {

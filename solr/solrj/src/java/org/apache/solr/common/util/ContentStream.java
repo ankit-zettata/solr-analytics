@@ -78,4 +78,11 @@ public interface ContentStream {
    * lazy loaded only when this method is called.
    */
   Reader getReader() throws IOException;
+  
+  /**
+   * Forced close of the stream itself to allow outside consumers
+   * to close any open handles.
+   * @throws IOException
+   */
+  void close() throws IOException;
 }

@@ -262,9 +262,6 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
   // to allow users to query an IndexWriter settings.
   private final LiveIndexWriterConfig config;
 
-  // The PayloadProcessorProvider to use when segments are merged
-  private PayloadProcessorProvider payloadProcessorProvider;
-
   DirectoryReader getReader() throws IOException {
     return getReader(true);
   }
@@ -554,6 +551,14 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
     }
   }
 
+  /**
+   * Used internally to throw an {@link
+   * AlreadyClosedException} if this IndexWriter has been
+   * closed.
+   * <p>
+   * Calls {@link #ensureOpen(boolean) ensureOpen(true)}.
+   * @throws AlreadyClosedException if this IndexWriter is closed
+   */
   protected final void ensureOpen() throws AlreadyClosedException {
     ensureOpen(true);
   }
@@ -765,8 +770,15 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
   }
 
   /**
-   * Commits all changes to an index and closes all
-   * associated files.  Note that this may be a costly
+   * Commits all changes to an index, waits for pending merges
+   * to complete, and closes all associated files.  
+   * <p>
+   * This is a "slow graceful shutdown" which may take a long time
+   * especially if a big merge is pending: If you only want to close
+   * resources use {@link #rollback()}. If you only want to commit
+   * pending changes and close resources see {@link #close(boolean)}.
+   * <p>
+   * Note that this may be a costly
    * operation, so, try to re-use a single writer instead of
    * closing and opening a new one.  See {@link #commit()} for
    * caveats about write caching done by some IO devices.
@@ -844,7 +856,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
         if (hitOOM) {
           rollbackInternal();
         } else {
-          closeInternal(waitForMerges, !hitOOM);
+          closeInternal(waitForMerges, true);
         }
       }
     }
@@ -872,7 +884,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
   }
 
   private void closeInternal(boolean waitForMerges, boolean doFlush) throws IOException {
-
+    boolean interrupted = false;
     try {
 
       if (pendingCommit != null) {
@@ -885,26 +897,57 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
 
       docWriter.close();
 
-      // Only allow a new merge to be triggered if we are
-      // going to wait for merges:
-      if (doFlush) {
-        flush(waitForMerges, true);
-      } else {
-        docWriter.abort(); // already closed
+      try {
+        // Only allow a new merge to be triggered if we are
+        // going to wait for merges:
+        if (doFlush) {
+          flush(waitForMerges, true);
+        } else {
+          docWriter.abort(); // already closed
+        }
+        
+      } finally {
+        try {
+          // clean up merge scheduler in all cases, although flushing may have failed:
+          interrupted = Thread.interrupted();
+        
+          if (waitForMerges) {
+            try {
+              // Give merge scheduler last chance to run, in case
+              // any pending merges are waiting:
+              mergeScheduler.merge(this);
+            } catch (ThreadInterruptedException tie) {
+              // ignore any interruption, does not matter
+              interrupted = true;
+              if (infoStream.isEnabled("IW")) {
+                infoStream.message("IW", "interrupted while waiting for final merges");
+              }
+            }
+          }
+          
+          synchronized(this) {
+            for (;;) {
+              try {
+                finishMerges(waitForMerges && !interrupted);
+                break;
+              } catch (ThreadInterruptedException tie) {
+                // by setting the interrupted status, the
+                // next call to finishMerges will pass false,
+                // so it will not wait
+                interrupted = true;
+                if (infoStream.isEnabled("IW")) {
+                  infoStream.message("IW", "interrupted while waiting for merges to finish");
+                }
+              }
+            }
+            stopMerges = true;
+          }
+          
+        } finally {
+          // shutdown policy, scheduler and all threads (this call is not interruptible):
+          IOUtils.closeWhileHandlingException(mergePolicy, mergeScheduler);
+        }
       }
-
-      if (waitForMerges)
-        // Give merge scheduler last chance to run, in case
-        // any pending merges are waiting:
-        mergeScheduler.merge(this);
-
-      mergePolicy.close();
-
-      synchronized(this) {
-        finishMerges(waitForMerges);
-        stopMerges = true;
-      }
-      mergeScheduler.close();
 
       if (infoStream.isEnabled("IW")) {
         infoStream.message("IW", "now call final commit()");
@@ -945,6 +988,8 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
           }
         }
       }
+      // finally, restore interrupt status:
+      if (interrupted) Thread.currentThread().interrupt();
     }
   }
 
@@ -995,6 +1040,9 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
     return count;
   }
 
+  /**
+   * Returns true if this index has deletions (including buffered deletions).
+   */
   public synchronized boolean hasDeletions() {
     ensureOpen();
     if (bufferedDeletesStream.any()) {
@@ -1208,6 +1256,78 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
     } catch (OutOfMemoryError oom) {
       handleOOM(oom, "deleteDocuments(Term)");
     }
+  }
+
+  /** Expert: attempts to delete by document ID, as long as
+   *  the provided reader is a near-real-time reader (from {@link
+   *  DirectoryReader#open(IndexWriter,boolean)}).  If the
+   *  provided reader is an NRT reader obtained from this
+   *  writer, and its segment has not been merged away, then
+   *  the delete succeeds and this method returns true; else, it
+   *  returns false the caller must then separately delete by
+   *  Term or Query.
+   *
+   *  <b>NOTE</b>: this method can only delete documents
+   *  visible to the currently open NRT reader.  If you need
+   *  to delete documents indexed after opening the NRT
+   *  reader you must use the other deleteDocument methods
+   *  (e.g., {@link #deleteDocuments(Term)}). */
+  public synchronized boolean tryDeleteDocument(IndexReader readerIn, int docID) throws IOException {
+
+    final AtomicReader reader;
+    if (readerIn instanceof AtomicReader) {
+      // Reader is already atomic: use the incoming docID:
+      reader = (AtomicReader) readerIn;
+    } else {
+      // Composite reader: lookup sub-reader and re-base docID:
+      List<AtomicReaderContext> leaves = readerIn.leaves();
+      int subIndex = ReaderUtil.subIndex(docID, leaves);
+      reader = leaves.get(subIndex).reader();
+      docID -= leaves.get(subIndex).docBase;
+      assert docID >= 0;
+      assert docID < reader.maxDoc();
+    }
+
+    if (!(reader instanceof SegmentReader)) {
+      throw new IllegalArgumentException("the reader must be a SegmentReader or composite reader containing only SegmentReaders");
+    }
+      
+    final SegmentInfoPerCommit info = ((SegmentReader) reader).getSegmentInfo();
+
+    // TODO: this is a slow linear search, but, number of
+    // segments should be contained unless something is
+    // seriously wrong w/ the index, so it should be a minor
+    // cost:
+
+    if (segmentInfos.indexOf(info) != -1) {
+      ReadersAndLiveDocs rld = readerPool.get(info, false);
+      if (rld != null) {
+        synchronized(bufferedDeletesStream) {
+          rld.initWritableLiveDocs();
+          if (rld.delete(docID)) {
+            final int fullDelCount = rld.info.getDelCount() + rld.getPendingDeleteCount();
+            if (fullDelCount == rld.info.info.getDocCount()) {
+              // If a merge has already registered for this
+              // segment, we leave it in the readerPool; the
+              // merge will skip merging it and will then drop
+              // it once it's done:
+              if (!mergingSegments.contains(rld.info)) {
+                segmentInfos.remove(rld.info);
+                readerPool.drop(rld.info);
+                checkpoint();
+              }
+            }
+          }
+          //System.out.println("  yes " + info.info.name + " " + docID);
+          return true;
+        }
+      } else {
+        //System.out.println("  no rld " + info.info.name + " " + docID);
+      }
+    } else {
+      //System.out.println("  no seg " + info.info.name + " " + docID);
+    }
+    return false;
   }
 
   /**
@@ -2298,8 +2418,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
                                          false, codec, null, null);
 
       SegmentMerger merger = new SegmentMerger(info, infoStream, trackingDir, config.getTermIndexInterval(),
-                                               MergeState.CheckAbort.NONE, payloadProcessorProvider,
-                                               globalFieldNumberMap, context);
+                                               MergeState.CheckAbort.NONE, globalFieldNumberMap, context);
 
       for (IndexReader reader : readers) {    // add new indexes
         merger.add(reader);
@@ -3074,7 +3193,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
     checkpoint();
 
     if (infoStream.isEnabled("IW")) {
-      infoStream.message("IW", "after commit: " + segString());
+      infoStream.message("IW", "after commitMerge: " + segString());
     }
 
     if (merge.maxNumSegments != -1 && !dropSegment) {
@@ -3445,7 +3564,7 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
     final TrackingDirectoryWrapper dirWrapper = new TrackingDirectoryWrapper(directory);
 
     SegmentMerger merger = new SegmentMerger(merge.info.info, infoStream, dirWrapper, config.getTermIndexInterval(), checkAbort,
-                                             payloadProcessorProvider, globalFieldNumberMap, context);
+                                             globalFieldNumberMap, context);
 
     if (infoStream.isEnabled("IW")) {
       infoStream.message("IW", "merging " + segString(merge.segments));
@@ -3999,38 +4118,6 @@ public class IndexWriter implements Closeable, TwoPhaseCommit {
   // Called by DirectoryReader.doClose
   synchronized void deletePendingFiles() throws IOException {
     deleter.deletePendingFiles();
-  }
-
-  /**
-   * Sets the {@link PayloadProcessorProvider} to use when merging payloads.
-   * Note that the given <code>pcp</code> will be invoked for every segment that
-   * is merged, not only external ones that are given through
-   * {@link #addIndexes}. If you want only the payloads of the external segments
-   * to be processed, you can return <code>null</code> whenever a
-   * {@link PayloadProcessorProvider.ReaderPayloadProcessor} is requested for the {@link Directory} of the
-   * {@link IndexWriter}.
-   * <p>
-   * The default is <code>null</code> which means payloads are processed
-   * normally (copied) during segment merges. You can also unset it by passing
-   * <code>null</code>.
-   * <p>
-   * <b>NOTE:</b> the set {@link PayloadProcessorProvider} will be in effect
-   * immediately, potentially for already running merges too. If you want to be
-   * sure it is used for further operations only, such as {@link #addIndexes} or
-   * {@link #forceMerge}, you can call {@link #waitForMerges()} before.
-   */
-  public void setPayloadProcessorProvider(PayloadProcessorProvider pcp) {
-    ensureOpen();
-    payloadProcessorProvider = pcp;
-  }
-
-  /**
-   * Returns the {@link PayloadProcessorProvider} that is used during segment
-   * merges to process payloads.
-   */
-  public PayloadProcessorProvider getPayloadProcessorProvider() {
-    ensureOpen();
-    return payloadProcessorProvider;
   }
   
   /**

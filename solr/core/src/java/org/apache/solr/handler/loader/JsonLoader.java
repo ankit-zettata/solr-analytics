@@ -96,6 +96,7 @@ public class JsonLoader extends ContentStreamLoader {
       }
       finally {
         IOUtils.closeQuietly(reader);
+        stream.close();
       }
     }
   

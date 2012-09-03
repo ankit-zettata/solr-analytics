@@ -457,7 +457,7 @@ public class UnInvertedField extends DocTermOrds {
    * @return The {@link org.apache.solr.handler.component.StatsValues} collected
    * @throws IOException
    */
-  public StatsValues getStats(SolrIndexSearcher searcher, DocSet baseDocs, String[] facet, boolean minimal) throws IOException {
+  public StatsValues getStats(SolrIndexSearcher searcher, DocSet baseDocs, String[] facet) throws IOException {
     //this function is ripped off nearly wholesale from the getCounts function to use
     //for multiValued fields within the StatsComponent.  may be useful to find common
     //functionality between the two and refactor code somewhat
@@ -466,7 +466,7 @@ public class UnInvertedField extends DocTermOrds {
     SchemaField sf = searcher.getSchema().getField(field);
    // FieldType ft = sf.getType();
 
-    StatsValues allstats = StatsValuesFactory.createStatsValues(sf, minimal);
+    StatsValues allstats = StatsValuesFactory.createStatsValues(sf);
 
 
     DocSet docs = baseDocs;
@@ -489,7 +489,7 @@ public class UnInvertedField extends DocTermOrds {
       catch (IOException e) {
         throw new RuntimeException("failed to open field cache for: " + f, e);
       }
-      finfo[i] = new FieldFacetStats(f, si, sf, facet_sf, numTermsInField, minimal);
+      finfo[i] = new FieldFacetStats(f, si, sf, facet_sf, numTermsInField);
       i++;
     }
 

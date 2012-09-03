@@ -30,6 +30,7 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.DateTools;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queryparser.classic.QueryParser.Operator;
+import org.apache.lucene.queryparser.flexible.standard.CommonQueryParserConfiguration;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
@@ -37,7 +38,7 @@ import org.apache.lucene.util.Version;
 /** This class is overridden by QueryParser in QueryParser.jj
  * and acts to separate the majority of the Java code from the .jj grammar file. 
  */
-public abstract class QueryParserBase {
+public abstract class QueryParserBase implements CommonQueryParserConfiguration {
 
   /** Do not catch this exception in your code, it means you are using methods that you should no longer use. */
   public static class MethodRemovedUseAnother extends Throwable {}
@@ -485,7 +486,9 @@ public abstract class QueryParserBase {
       source = analyzer.tokenStream(field, new StringReader(queryText));
       source.reset();
     } catch (IOException e) {
-      throw new ParseException("Unable to initialize TokenStream to analyze query text", e);
+      ParseException p = new ParseException("Unable to initialize TokenStream to analyze query text");
+      p.initCause(e);
+      throw p;
     }
     CachingTokenFilter buffer = new CachingTokenFilter(source);
     TermToBytesRefAttribute termAtt = null;
@@ -530,7 +533,9 @@ public abstract class QueryParserBase {
       source.close();
     }
     catch (IOException e) {
-      throw new ParseException("Cannot close TokenStream analyzing query text", e);
+      ParseException p = new ParseException("Cannot close TokenStream analyzing query text");
+      p.initCause(e);
+      throw p;
     }
 
     BytesRef bytes = termAtt == null ? null : termAtt.getBytesRef();

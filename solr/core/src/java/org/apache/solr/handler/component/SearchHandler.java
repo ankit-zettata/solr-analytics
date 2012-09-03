@@ -266,10 +266,10 @@ public class SearchHandler extends RequestHandlerBase implements SolrCoreAware ,
               params.remove(CommonParams.HEADER_ECHO_PARAMS);
               params.set(ShardParams.IS_SHARD, true);  // a sub (shard) request
               params.set(ShardParams.SHARD_URL, shard); // so the shard knows what was asked
-              if (rb.requestInfo != null) {
+              // if (rb.requestInfo != null) {  // AVOID CACHE BUSTING
                 // we could try and detect when this is needed, but it could be tricky
-                params.set("NOW", Long.toString(rb.requestInfo.getNOW().getTime()));
-              }
+                // params.set("NOW", Long.toString(rb.requestInfo.getNOW().getTime()));
+              // }
               String shardQt = params.get(ShardParams.SHARDS_QT);
               if (shardQt == null) {
                 params.remove(CommonParams.QT);
