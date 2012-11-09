@@ -1,0 +1,8 @@
+<schedule>
+    <tasks>
+        <!-- run delta import every 30 seconds -->
+        <task url="http://localhost:8080/solr/core/select?qt=/dataimport&command=delta-import&clean=false&commit=true" seconds="30" />
+        <!-- This pattern causes a task to be launched every day at 03:00am 10:30pm -->
+        <task url="http://localhost:8080/solr/core/select?qt=/dataimport&command=full-import&clean=true&commit=true" cron="0 3 * * *|30 20 * * *" />
+    </tasks>
+</schedule>

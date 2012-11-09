@@ -28,24 +28,29 @@
 
   <resolvers>
     <ibiblio name="sonatype-releases" root="http://oss.sonatype.org/content/repositories/releases" m2compatible="true" />
+    <ibiblio name="oracle" root="http://download.oracle.com/maven/" m2compatible="true"/>
+    <ibiblio name="cron4j" root="http://www.gridgainsystems.com/maven2/" m2compatible="true"/>
+    
 
     <!-- you might need to tweak this from china so it works -->
     <ibiblio name="working-chinese-mirror" root="http://mirror.netcologne.de/maven2" m2compatible="true" />
 
-    <!--
     <filesystem name="local-maven-2" m2compatible="true" local="true">
       <artifact
           pattern="${local-maven2-dir}/[organisation]/[module]/[revision]/[module]-[revision].[ext]" />
       <ivy
           pattern="${local-maven2-dir}/[organisation]/[module]/[revision]/[module]-[revision].pom" />
     </filesystem>
-    -->
+    
 
     <chain name="default" returnFirst="true" checkmodified="true" changingPattern=".*SNAPSHOT">
       <resolver ref="local"/>
-      <!-- <resolver ref="local-maven-2" /> -->
+      <resolver ref="local-maven-2" />
       <resolver ref="main"/>
       <resolver ref="sonatype-releases" />
+      <resolver ref="oracle" />
+      <resolver ref="cron4j" />
+      
       <resolver ref="working-chinese-mirror" />
     </chain>
   </resolvers>
