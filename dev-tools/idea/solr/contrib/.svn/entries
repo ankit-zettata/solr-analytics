@@ -1,52 +1,0 @@
-10
-
-dir
-1378379
-http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/dev-tools/idea/solr/contrib
-http://svn.apache.org/repos/asf
-
-
-
-2012-08-19T05:35:40.987135Z
-1374695
-dsmiley
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-13f79535-47bb-0310-9956-ffa450edef68
-
-clustering
-dir
-
-extraction
-dir
-
-dataimporthandler
-dir
-
-dataimporthandler-extras
-dir
-
-analysis-extras
-dir
-
-uima
-dir
-
-langid
-dir
-
-velocity
-dir
-

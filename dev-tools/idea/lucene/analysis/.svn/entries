@@ -1,52 +1,0 @@
-10
-
-dir
-1378379
-http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/dev-tools/idea/lucene/analysis
-http://svn.apache.org/repos/asf
-
-
-
-2012-08-19T21:05:05.190937Z
-1374853
-sarowe
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-13f79535-47bb-0310-9956-ffa450edef68
-
-kuromoji
-dir
-
-icu
-dir
-
-smartcn
-dir
-
-common
-dir
-
-morfologik
-dir
-
-phonetic
-dir
-
-stempel
-dir
-
-uima
-dir
-

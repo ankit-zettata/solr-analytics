@@ -1,110 +1,0 @@
-10
-
-dir
-1378379
-http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/dev-tools/maven/lucene
-http://svn.apache.org/repos/asf
-
-
-
-2012-08-28T11:54:41.358933Z
-1378093
-rmuir
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-13f79535-47bb-0310-9956-ffa450edef68
-
-suggest
-dir
-
-queryparser
-dir
-
-facet
-dir
-
-analysis
-dir
-
-demo
-dir
-
-core
-dir
-
-grouping
-dir
-
-benchmark
-dir
-
-misc
-dir
-
-spatial
-dir
-
-sandbox
-dir
-
-highlighter
-dir
-
-join
-dir
-
-pom.xml.template
-file
-
-
-
-
-2012-08-28T23:30:07.262700Z
-337966a78656d9b16ef62a0dd3f8d2f7
-2012-08-07T22:04:32.595024Z
-1370561
-sarowe
-has-props
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-2363
-
-memory
-dir
-
-test-framework
-dir
-
-queries
-dir
-

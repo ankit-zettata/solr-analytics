@@ -1,104 +1,0 @@
-10
-
-dir
-1378379
-http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/dev-tools/idea/lucene
-http://svn.apache.org/repos/asf
-
-
-
-2012-08-19T21:05:05.190937Z
-1374853
-sarowe
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-13f79535-47bb-0310-9956-ffa450edef68
-
-suggest
-dir
-
-queryparser
-dir
-
-facet
-dir
-
-analysis
-dir
-
-demo
-dir
-
-grouping
-dir
-
-benchmark
-dir
-
-lucene.iml
-file
-
-
-
-
-2012-08-28T23:30:06.446096Z
-42dcf0be0e644fe044478c5164657b4e
-2012-07-15T06:22:43.877406Z
-1361637
-sarowe
-has-props
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-1382
-
-misc
-dir
-
-spatial
-dir
-
-sandbox
-dir
-
-highlighter
-dir
-
-join
-dir
-
-memory
-dir
-
-queries
-dir
-
