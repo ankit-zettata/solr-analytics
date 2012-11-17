@@ -53,6 +53,7 @@
       <!-- Other ExtracingRequestHandler dependencies -->
       <dependency org="com.ibm.icu" name="icu4j" rev="49.1" transitive="false"/>
       <dependency org="xerces" name="xercesImpl" rev="2.9.1" transitive="false"/>
+      <dependency org="net.sourceforge.nekohtml" name="nekohtml" rev="1.9.15" transitive="false"/>
       <exclude org="*" ext="*" matcher="regexp" type="${ivy.exclude.types}"/> 
     </dependencies>
 </ivy-module>
