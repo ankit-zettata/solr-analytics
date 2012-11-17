@@ -82,7 +82,7 @@ public interface ContentStream {
   /**
    * Forced close of the stream itself to allow outside consumers
    * to close any open handles.
-   * @throws IOException
+   * @throws IOException Exception that occurs when the stream can not be closed
    */
   void close() throws IOException;
 }

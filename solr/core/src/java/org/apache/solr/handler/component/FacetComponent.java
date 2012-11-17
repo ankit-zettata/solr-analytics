@@ -94,7 +94,7 @@ public class FacetComponent extends SearchComponent
   
   /**
    * Actually run the query
-   * @param rb
+   * @param rb The response builder {@link ResponseBuilder}
    */
   @Override
   public void process(ResponseBuilder rb) throws IOException
