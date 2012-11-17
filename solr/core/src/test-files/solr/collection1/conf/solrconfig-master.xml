@@ -17,7 +17,7 @@
  limitations under the License.
 -->
 
-<!-- $Id: solrconfig-master.xml 1335768 2012-05-08 21:06:10Z ryan $
+<!-- $Id: solrconfig-master.xml 1384501 2012-09-13 20:07:25Z hossman $
      $Source$
      $Name$
   -->
@@ -41,7 +41,10 @@
   <requestHandler name="/replication" class="solr.ReplicationHandler">
     <lst name="master">
       <str name="replicateAfter">commit</str>
-      <str name="confFiles">schema.xml</str>
+      <!-- we don't really need dummy.xsl, but we want to be sure subdir 
+           files replicate (see SOLR-3809)
+      -->
+      <str name="confFiles">schema.xml,xslt/dummy.xsl</str>
     </lst>
   </requestHandler>
 

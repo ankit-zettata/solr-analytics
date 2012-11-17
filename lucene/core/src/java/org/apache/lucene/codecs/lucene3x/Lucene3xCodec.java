@@ -44,7 +44,7 @@ import org.apache.lucene.util.MutableBits;
 
 /**
  * Supports the Lucene 3.x index format (readonly)
- * @deprecated
+ * @deprecated Only for reading existing 3.x indexes
  */
 @Deprecated
 public class Lucene3xCodec extends Codec {
@@ -68,12 +68,7 @@ public class Lucene3xCodec extends Codec {
   static final String COMPOUND_FILE_STORE_EXTENSION = "cfx";
   
   // TODO: this should really be a different impl
-  private final LiveDocsFormat liveDocsFormat = new Lucene40LiveDocsFormat() {
-    @Override
-    public void writeLiveDocs(MutableBits bits, Directory dir, SegmentInfoPerCommit info, int newDelCount, IOContext context) throws IOException {
-      throw new UnsupportedOperationException("this codec can only be used for reading");
-    }
-  };
+  private final LiveDocsFormat liveDocsFormat = new Lucene40LiveDocsFormat();
   
   // 3.x doesn't support docvalues
   private final DocValuesFormat docValuesFormat = new DocValuesFormat() {

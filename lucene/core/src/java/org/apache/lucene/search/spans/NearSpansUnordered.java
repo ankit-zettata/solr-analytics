@@ -151,7 +151,7 @@ public class NearSpansUnordered extends Spans {
     }
   }
   public Spans[] getSubSpans() {
-	  return subSpans;
+    return subSpans;
   }
   @Override
   public boolean next() throws IOException {
@@ -241,7 +241,7 @@ public class NearSpansUnordered extends Spans {
   /**
    * WARNING: The List is not necessarily in order of the the positions
    * @return Collection of <code>byte[]</code> payloads
-   * @throws IOException
+   * @throws IOException if there is a low-level I/O error
    */
   @Override
   public Collection<byte[]> getPayload() throws IOException {
@@ -286,7 +286,7 @@ public class NearSpansUnordered extends Spans {
   }
 
   private void addToList(SpansCell cell) {
-    if (last != null) {			  // add next to end of list
+    if (last != null) {  // add next to end of list
       last.next = cell;
     } else
       first = cell;
@@ -295,7 +295,7 @@ public class NearSpansUnordered extends Spans {
   }
 
   private void firstToLast() {
-    last.next = first;			  // move first to end of list
+    last.next = first;  // move first to end of list
     last = first;
     first = first.next;
     last.next = null;

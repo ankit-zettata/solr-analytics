@@ -79,6 +79,11 @@ public class CurrencyField extends FieldType implements SchemaAware, ResourceLoa
   @Override
   protected void init(IndexSchema schema, Map<String, String> args) {
     super.init(schema, args);
+    if (this.isMultiValued()) { 
+      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, 
+                              "CurrencyField types can not be multiValued: " + 
+                              this.typeName);
+    }
     this.schema = schema;
     this.exchangeRateProviderClass = args.get(PARAM_RATE_PROVIDER_CLASS);
     this.defaultCurrency = args.get(PARAM_DEFAULT_CURRENCY);
@@ -128,6 +133,16 @@ public class CurrencyField extends FieldType implements SchemaAware, ResourceLoa
   @Override
   public boolean isPolyField() {
     return true;
+  }
+
+  @Override
+  public void checkSchemaField(final SchemaField field) throws SolrException {
+    super.checkSchemaField(field);
+    if (field.multiValued()) {
+      throw new SolrException(SolrException.ErrorCode.SERVER_ERROR, 
+                              "CurrencyFields can not be multiValued: " + 
+                              field.getName());
+    }
   }
 
   @Override
@@ -210,7 +225,7 @@ public class CurrencyField extends FieldType implements SchemaAware, ResourceLoa
       final CurrencyValue p1 = CurrencyValue.parse(part1, defaultCurrency);
       final CurrencyValue p2 = CurrencyValue.parse(part2, defaultCurrency);
 
-      if (!p1.getCurrencyCode().equals(p2.getCurrencyCode())) {
+      if (p1 != null && p2 != null && !p1.getCurrencyCode().equals(p2.getCurrencyCode())) {
           throw new SolrException(SolrException.ErrorCode.BAD_REQUEST,
                   "Cannot parse range query " + part1 + " to " + part2 +
                           ": range queries only supported when upper and lower bound have same currency.");
@@ -220,11 +235,12 @@ public class CurrencyField extends FieldType implements SchemaAware, ResourceLoa
   }
 
   public Query getRangeQuery(QParser parser, SchemaField field, final CurrencyValue p1, final CurrencyValue p2, final boolean minInclusive, final boolean maxInclusive) {
-    String currencyCode = p1.getCurrencyCode();
+    String currencyCode = (p1 != null) ? p1.getCurrencyCode() :
+                          (p2 != null) ? p2.getCurrencyCode() : defaultCurrency;
     final CurrencyValueSource vs = new CurrencyValueSource(field, currencyCode, parser);
 
     return new SolrConstantScoreQuery(new ValueSourceRangeFilter(vs,
-            p1.getAmount() + "", p2.getAmount() + "", minInclusive, maxInclusive));
+            p1 == null ? null : p1.getAmount() + "" , p2 == null ? null : p2.getAmount() + "", minInclusive, maxInclusive));
   }
 
   @Override
@@ -646,6 +662,9 @@ class CurrencyValue {
    * @return The parsed CurrencyValue.
    */
   public static CurrencyValue parse(String externalVal, String defaultCurrency) {
+    if (externalVal == null) {
+      return null;
+    }
     String amount = externalVal;
     String code = defaultCurrency;
 
@@ -655,6 +674,10 @@ class CurrencyValue {
       code = amountAndCode[1];
     }
 
+    if (amount.equals("*")) {
+      return null;
+    }
+    
     Currency currency = java.util.Currency.getInstance(code);
 
     if (currency == null) {

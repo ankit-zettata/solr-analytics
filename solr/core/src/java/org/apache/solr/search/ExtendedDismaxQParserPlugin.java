@@ -346,17 +346,13 @@ class ExtendedDismaxQParser extends QParser {
 
     /* * * Boosting Query * * */
     boostParams = solrParams.getParams(DisMaxParams.BQ);
+    //List<Query> boostQueries = U.parseQueryStrings(req, boostParams);
     boostQueries=null;
     if (boostParams!=null && boostParams.length>0) {
-      Map<String,Float> bqBoosts = SolrPluginUtils.parseFieldBoosts(boostParams);
       boostQueries = new ArrayList<Query>();
-      for (Map.Entry<String,Float> bqs : bqBoosts.entrySet()) {
-        if (bqs.getKey().trim().length()==0) continue;
-        Query q = subQuery(bqs.getKey(), null).getQuery();
-        Float b = bqs.getValue();
-        if(b!=null) {
-          q.setBoost(b);
-        }
+      for (String qs : boostParams) {
+        if (qs.trim().length()==0) continue;
+        Query q = subQuery(qs, null).getQuery();
         boostQueries.add(q);
       }
     }
@@ -417,9 +413,7 @@ class ExtendedDismaxQParser extends QParser {
   }
 
   /**
-   * Extracts all the alised fields from the requests and adds them to up
-   * @param up
-   * @param tiebreaker
+   * Extracts all the aliased fields from the requests and adds them to up
    */
   private void addAliasesFromRequest(ExtendedSolrQueryParser up, float tiebreaker) {
     Iterator<String> it = solrParams.getParameterNamesIterator();
@@ -957,7 +951,6 @@ class ExtendedDismaxQParser extends QParser {
     /**
      * Returns the aliases found for a field.
      * Returns null if there are no aliases for the field
-     * @param field
      * @return Alias
      */
     public Alias getAlias(String field) {

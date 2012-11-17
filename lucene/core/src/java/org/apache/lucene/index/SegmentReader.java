@@ -126,7 +126,9 @@ public final class SegmentReader extends AtomicReader {
     return core.fieldInfos;
   }
 
-  /** @lucene.internal */
+  /** Expert: retrieve thread-private {@link
+   *  StoredFieldsReader}
+   *  @lucene.internal */
   public StoredFieldsReader getFieldsReader() {
     ensureOpen();
     return core.fieldsReaderLocal.get();
@@ -158,18 +160,14 @@ public final class SegmentReader extends AtomicReader {
     return si.info.getDocCount();
   }
 
-  /** @lucene.internal */
+  /** Expert: retrieve thread-private {@link
+   *  TermVectorsReader}
+   *  @lucene.internal */
   public TermVectorsReader getTermVectorsReader() {
     ensureOpen();
     return core.termVectorsLocal.get();
   }
 
-  /** Return a term frequency vector for the specified document and field. The
-   *  vector returned contains term numbers and frequencies for all terms in
-   *  the specified field of this document, if the field had storeTermVector
-   *  flag set.  If the flag was not set, the method returns null.
-   * @throws IOException
-   */
   @Override
   public Fields getTermVectors(int docID) throws IOException {
     TermVectorsReader termVectorsReader = getTermVectorsReader();
@@ -220,7 +218,9 @@ public final class SegmentReader extends AtomicReader {
   public Object getCombinedCoreAndDeletesKey() {
     return this;
   }
-  
+
+  /** Returns term infos index divisor originally passed to
+   *  {@link #SegmentReader(SegmentInfoPerCommit, int, IOContext)}. */
   public int getTermInfosIndexDivisor() {
     return core.termsIndexDivisor;
   }
@@ -260,6 +260,8 @@ public final class SegmentReader extends AtomicReader {
    * @lucene.experimental
    */
   public static interface CoreClosedListener {
+    /** Invoked when the shared core of the provided {@link
+     *  SegmentReader} has closed. */
     public void onClose(SegmentReader owner);
   }
   

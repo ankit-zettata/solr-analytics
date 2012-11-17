@@ -495,7 +495,7 @@ public class ReplicationHandler extends RequestHandlerBase implements SolrCoreAw
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/handler/ReplicationHandler.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/handler/ReplicationHandler.java $";
   }
 
   private long[] getIndexVersion() {
@@ -568,8 +568,6 @@ public class ReplicationHandler extends RequestHandlerBase implements SolrCoreAw
 
   /**
    * Used for showing statistics and progress information.
-   *
-   * @param showSlaveDetails
    */
   private NamedList<Object> getReplicationDetails(boolean showSlaveDetails) {
     NamedList<Object> details = new SimpleOrderedMap<Object>();

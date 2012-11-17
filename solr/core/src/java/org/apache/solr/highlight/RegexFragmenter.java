@@ -95,7 +95,7 @@ public class RegexFragmenter extends HighlightingPluginBase implements SolrFragm
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/highlight/RegexFragmenter.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/highlight/RegexFragmenter.java $";
   }
 }
 

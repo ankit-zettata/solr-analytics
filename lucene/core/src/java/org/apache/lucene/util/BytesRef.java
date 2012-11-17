@@ -130,7 +130,7 @@ public final class BytesRef implements Comparable<BytesRef>,Cloneable {
   
   /** Calculates the hash code as required by TermsHash during indexing.
    * <p>It is defined as:
-   * <pre>
+   * <pre class="prettyprint">
    *  int hash = 0;
    *  for (int i = offset; i &lt; offset + length; i++) {
    *    hash = 31*hash + bytes[i];
@@ -262,7 +262,7 @@ public final class BytesRef implements Comparable<BytesRef>,Cloneable {
     }    
   }
 
-  /** @deprecated */
+  /** @deprecated This comparator is only a transition mechanism */
   @Deprecated
   private final static Comparator<BytesRef> utf8SortedAsUTF16SortOrder = new UTF8SortedAsUTF16Comparator();
 
@@ -272,7 +272,7 @@ public final class BytesRef implements Comparable<BytesRef>,Cloneable {
     return utf8SortedAsUTF16SortOrder;
   }
 
-  /** @deprecated */
+  /** @deprecated This comparator is only a transition mechanism */
   @Deprecated
   private static class UTF8SortedAsUTF16Comparator implements Comparator<BytesRef> {
     // Only singleton

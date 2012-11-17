@@ -26,6 +26,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.grouping.dv.DVGroupFacetCollector;
 import org.apache.lucene.search.grouping.term.TermGroupFacetCollector;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FSDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util._TestUtil;
 
@@ -227,11 +228,15 @@ public class GroupFacetCollectorTest extends AbstractGroupingTestCase {
             new MockAnalyzer(random())).setMergePolicy(NoMergePolicy.COMPOUND_FILES));
     boolean useDv = false;
 
+    // Cannot assert this since we use NoMergePolicy:
+    w.setDoRandomForceMergeAssert(false);
+
     // 0
     Document doc = new Document();
     addField(doc, "x", "x", useDv);
     w.addDocument(doc);
 
+    // 1
     doc = new Document();
     addField(doc, groupField, "a", useDv);
     addField(doc, "airport", "ams", useDv);
@@ -240,28 +245,16 @@ public class GroupFacetCollectorTest extends AbstractGroupingTestCase {
     w.commit();
     w.deleteDocuments(new TermQuery(new Term("airport", "ams")));
 
-    // 0
-    doc = new Document();
-    addField(doc, groupField, "a", useDv);
-    addField(doc, "airport", "ams", useDv);
-    w.addDocument(doc);
-
-    // 1
-    doc = new Document();
-    addField(doc, groupField, "a", useDv);
-    addField(doc, "airport", "dus", useDv);
-    w.addDocument(doc);
-
     // 2
     doc = new Document();
-    addField(doc, groupField, "b", useDv);
+    addField(doc, groupField, "a", useDv);
     addField(doc, "airport", "ams", useDv);
     w.addDocument(doc);
 
     // 3
     doc = new Document();
-    addField(doc, groupField, "b", useDv);
-    addField(doc, "airport", "ams", useDv);
+    addField(doc, groupField, "a", useDv);
+    addField(doc, "airport", "dus", useDv);
     w.addDocument(doc);
 
     // 4
@@ -270,14 +263,32 @@ public class GroupFacetCollectorTest extends AbstractGroupingTestCase {
     addField(doc, "airport", "ams", useDv);
     w.addDocument(doc);
 
+    // 5
+    doc = new Document();
+    addField(doc, groupField, "b", useDv);
+    addField(doc, "airport", "ams", useDv);
+    w.addDocument(doc);
+
+    // 6
+    doc = new Document();
+    addField(doc, groupField, "b", useDv);
+    addField(doc, "airport", "ams", useDv);
+    w.addDocument(doc);
     w.commit();
+
+    // 7
+    doc = new Document();
+    addField(doc, "x", "x", useDv);
+    w.addDocument(doc);
+    w.commit();
+
     w.close();
     IndexSearcher indexSearcher = new IndexSearcher(DirectoryReader.open(dir));
     AbstractGroupFacetCollector groupedAirportFacetCollector = createRandomCollector(groupField, "airport", null, true, useDv);
     indexSearcher.search(new MatchAllDocsQuery(), groupedAirportFacetCollector);
     TermGroupFacetCollector.GroupedFacetResult airportResult = groupedAirportFacetCollector.mergeSegmentResults(10, 0, false);
     assertEquals(3, airportResult.getTotalCount());
-    assertEquals(0, airportResult.getTotalMissingCount());
+    assertEquals(1, airportResult.getTotalMissingCount());
 
     List<TermGroupFacetCollector.FacetEntry> entries = airportResult.getFacetEntries(0, 10);
     assertEquals(2, entries.size());

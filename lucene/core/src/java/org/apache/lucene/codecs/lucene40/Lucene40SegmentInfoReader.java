@@ -24,6 +24,7 @@ import java.util.Set;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.SegmentInfoReader;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.store.Directory;
@@ -39,6 +40,10 @@ import org.apache.lucene.util.IOUtils;
  */
 public class Lucene40SegmentInfoReader extends SegmentInfoReader {
 
+  /** Sole constructor. */
+  public Lucene40SegmentInfoReader() {
+  }
+
   @Override
   public SegmentInfo read(Directory dir, String segment, IOContext context) throws IOException {
     final String fileName = IndexFileNames.segmentFileName(segment, "", Lucene40SegmentInfoFormat.SI_EXTENSION);
@@ -50,10 +55,17 @@ public class Lucene40SegmentInfoReader extends SegmentInfoReader {
                                    Lucene40SegmentInfoFormat.VERSION_CURRENT);
       final String version = input.readString();
       final int docCount = input.readInt();
+      if (docCount < 0) {
+        throw new CorruptIndexException("invalid docCount: " + docCount + " (resource=" + input + ")");
+      }
       final boolean isCompoundFile = input.readByte() == SegmentInfo.YES;
       final Map<String,String> diagnostics = input.readStringStringMap();
       final Map<String,String> attributes = input.readStringStringMap();
       final Set<String> files = input.readStringSet();
+      
+      if (input.getFilePointer() != input.length()) {
+        throw new CorruptIndexException("did not read all bytes from file \"" + fileName + "\": read " + input.getFilePointer() + " vs size " + input.length() + " (resource: " + input + ")");
+      }
 
       final SegmentInfo si = new SegmentInfo(dir, version, segment, docCount, isCompoundFile,
                                              null, diagnostics, Collections.unmodifiableMap(attributes));

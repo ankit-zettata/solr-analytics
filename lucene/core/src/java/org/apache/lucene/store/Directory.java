@@ -180,7 +180,7 @@ public abstract class Directory implements Closeable {
    * If you want to copy the entire source directory to the destination one, you
    * can do so like this:
    * 
-   * <pre>
+   * <pre class="prettyprint">
    * Directory to; // the directory to copy to
    * for (String file : dir.listAll()) {
    *   dir.copy(to, file, newFile); // newFile can be either file, or a new name
@@ -197,11 +197,22 @@ public abstract class Directory implements Closeable {
     try {
       os = to.createOutput(dest, context);
       is = openInput(src, context);
-      is.copyBytes(os, is.length());
+      os.copyBytes(is, is.length());
     } catch (IOException ioe) {
       priorException = ioe;
     } finally {
-      IOUtils.closeWhileHandlingException(priorException, os, is);
+      boolean success = false;
+      try {
+        IOUtils.closeWhileHandlingException(priorException, os, is);
+        success = true;
+      } finally {
+        if (!success) {
+          try {
+            to.deleteFile(dest);
+          } catch (Throwable t) {
+          }
+        }
+      }
     }
   }
 
@@ -260,7 +271,10 @@ public abstract class Directory implements Closeable {
     /**
      * Returns an {@link IndexInput} slice starting at offset <i>0</i> with a
      * length equal to the length of the underlying file
+     * @deprecated Only for reading CFS files from 3.x indexes.
      */
+    @Deprecated
+    // can we remove this somehow?
     public abstract IndexInput openFullSlice() throws IOException;
   }
   
@@ -323,23 +337,6 @@ public abstract class Directory implements Closeable {
     @Override
     public long length() {
       return length;
-    }
-    
-    @Override
-    public void copyBytes(IndexOutput out, long numBytes) throws IOException {
-      // Copy first whatever is in the buffer
-      numBytes -= flushBuffer(out, numBytes);
-      
-      // If there are more bytes left to copy, delegate the copy task to the
-      // base IndexInput, in case it can do an optimized copy.
-      if (numBytes > 0) {
-        long start = getFilePointer();
-        if (start + numBytes > length) {
-          throw new EOFException("read past EOF: " + this);
-        }
-        base.seek(fileOffset + start);
-        base.copyBytes(out, numBytes);
-      }
     }
   }
 }

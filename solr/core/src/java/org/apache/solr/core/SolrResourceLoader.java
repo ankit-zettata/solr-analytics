@@ -36,7 +36,6 @@ import org.apache.lucene.analysis.util.TokenFilterFactory;
 import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.util.hash.HashFunction;
 import org.apache.lucene.analysis.util.WordlistLoader;
 import org.apache.solr.common.ResourceLoader;
 import org.apache.solr.handler.admin.CoreAdminHandler;
@@ -176,8 +175,6 @@ public class SolrResourceLoader implements ResourceLoader
    * this ResourceLoader.
    */
   void reloadLuceneSPI() {
-    // Hash functions:
-    HashFunction.reloadHashFunctions(this.classLoader);
     // Codecs:
     PostingsFormat.reloadPostingsFormats(this.classLoader);
     Codec.reloadCodecs(this.classLoader);
@@ -327,10 +324,9 @@ public class SolrResourceLoader implements ResourceLoader
    * A comment line is any line that starts with the character "#"
    * </p>
    *
-   * @param resource
    * @return a list of non-blank non-comment lines with whitespace trimmed
    * from front and back.
-   * @throws IOException
+   * @throws IOException If there is a low-level I/O error.
    */
   public List<String> getLines(String resource) throws IOException {
     return getLines(resource, UTF_8);
@@ -345,9 +341,8 @@ public class SolrResourceLoader implements ResourceLoader
    * </p>
    *
    * @param resource the file to be read
-   * @param encoding
    * @return a list of non-blank non-comment lines with whitespace trimmed
-   * @throws IOException
+   * @throws IOException If there is a low-level I/O error.
    */
   public List<String> getLines(String resource,
       String encoding) throws IOException {
@@ -634,7 +629,11 @@ public class SolrResourceLoader implements ResourceLoader
 
 
     for (SolrInfoMBean bean : arr) {
-      infoRegistry.put(bean.getName(), bean);
+      try {
+        infoRegistry.put(bean.getName(), bean);
+      } catch (Throwable t) {
+        log.warn("could not register MBean '" + bean.getName() + "'.", t);
+      }
     }
   }
   

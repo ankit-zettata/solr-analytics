@@ -35,8 +35,16 @@ import org.apache.lucene.document.DocumentStoredFieldVisitor;
  * @lucene.experimental */
 
 public abstract class StoredFieldVisitor {
-  /** Process a binary field. */
-  public void binaryField(FieldInfo fieldInfo, byte[] value, int offset, int length) throws IOException {
+
+  /** Sole constructor. (For invocation by subclass 
+   * constructors, typically implicit.) */
+  protected StoredFieldVisitor() {
+  }
+  
+  /** Process a binary field. 
+   * @param value newly allocated byte array with the binary contents. 
+   */
+  public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
   }
 
   /** Process a string field */

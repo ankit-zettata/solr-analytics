@@ -28,6 +28,7 @@
   
   <path id="test.classpath">
     <pathelement location="${common.dir}/build/test-framework/classes/java"/>
+    <pathelement location="${common.dir}/build/codecs/classes/java"/>
     <path refid="junit-path"/>
     <pathelement location="${build.dir}/classes/java"/>
     <pathelement location="${build.dir}/classes/test"/>
@@ -38,8 +39,6 @@
     <pathelement path="${java.class.path}"/>
   </path>
 
-  <target name="compile-core" depends="jflex-notice, javacc-notice, common.compile-core"/>
-  
   <target name="test-core" depends="common.test"/>
 
   <target name="javadocs-core" depends="javadocs"/>
@@ -56,6 +55,8 @@
      <jarify basedir="${javadoc.dir}/core" destfile="${build.dir}/${final.name}-javadoc.jar"/>
     </sequential>
   </target>
+
+  <target name="dist-maven" depends="dist-maven-src-java"/>
 
   <macrodef name="createLevAutomaton">
   	<attribute name="n"/>
@@ -97,18 +98,19 @@
   </target>
 
   <target name="createLevAutomata" depends="check-moman,clone-moman,pull-moman">
-  	<createLevAutomaton n="1"/>
-  	<createLevAutomaton n="2"/>
+    <createLevAutomaton n="1"/>
+    <createLevAutomaton n="2"/>
   </target>
   
   <target name="check-moman">
     <condition property="moman.cloned">
-      <available file="src/java/org/apache/lucene/util/automaton/moman"/>
-  	</condition>
+      <available file="${build.dir}/moman"/>
+    </condition>
   </target>
-	
+
   <target name="clone-moman" unless="moman.cloned">
-  	<exec dir="src/java/org/apache/lucene/util/automaton" 
+    <mkdir dir="${build.dir}"/>
+    <exec dir="${build.dir}" 
           executable="${hg.exe}" failonerror="true">
       <arg value="clone"/>
       <arg value="-r"/>
@@ -119,7 +121,7 @@
   </target>
 
   <target name="pull-moman" if="moman.cloned">
-    <exec dir="src/java/org/apache/lucene/util/automaton/moman" 
+    <exec dir="${build.dir}/moman" 
           executable="${hg.exe}" failonerror="true">
       <arg value="pull"/>
       <arg value="-f"/>

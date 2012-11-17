@@ -30,6 +30,8 @@ import java.util.Map;
 
 import org.apache.lucene.codecs.BlockTreeTermsReader;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.PostingsFormat; // javadocs
+import org.apache.lucene.codecs.lucene3x.Lucene3xSegmentInfoFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.FieldType; // for javadocs
 import org.apache.lucene.index.DocValues.SortedSource;
@@ -69,6 +71,9 @@ public class CheckIndex {
    **/
 
   public static class Status {
+
+    Status() {
+    }
 
     /** True if no problems were found with the index. */
     public boolean clean;
@@ -134,6 +139,10 @@ public class CheckIndex {
      * @lucene.experimental
      */
     public static class SegmentInfoStatus {
+
+      SegmentInfoStatus() {
+      }
+
       /** Name of the segment. */
       public String name;
 
@@ -207,6 +216,9 @@ public class CheckIndex {
      * Status from testing field norms.
      */
     public static final class FieldNormStatus {
+      private FieldNormStatus() {
+      }
+
       /** Number of fields successfully tested */
       public long totFields = 0L;
 
@@ -218,6 +230,10 @@ public class CheckIndex {
      * Status from testing term index.
      */
     public static final class TermIndexStatus {
+
+      TermIndexStatus() {
+      }
+
       /** Total term count */
       public long termCount = 0L;
 
@@ -230,6 +246,10 @@ public class CheckIndex {
       /** Exception thrown during term index test (null on success) */
       public Throwable error = null;
 
+      /** Holds details of block allocations in the block
+       *  tree terms dictionary (this is only set if the
+       *  {@link PostingsFormat} for this segment uses block
+       *  tree. */
       public Map<String,BlockTreeTermsReader.Stats> blockTreeStats = null;
     }
 
@@ -237,6 +257,9 @@ public class CheckIndex {
      * Status from testing stored fields.
      */
     public static final class StoredFieldStatus {
+
+      StoredFieldStatus() {
+      }
       
       /** Number of documents tested. */
       public int docCount = 0;
@@ -253,6 +276,9 @@ public class CheckIndex {
      */
     public static final class TermVectorStatus {
       
+      TermVectorStatus() {
+      }
+
       /** Number of documents tested. */
       public int docCount = 0;
       
@@ -267,6 +293,10 @@ public class CheckIndex {
      * Status from testing DocValues
      */
     public static final class DocValuesStatus {
+
+      DocValuesStatus() {
+      }
+
       /** Number of documents tested. */
       public int docCount;
       /** Total number of docValues tested. */
@@ -482,7 +512,10 @@ public class CheckIndex {
         msg("    numFiles=" + info.files().size());
         segInfoStat.numFiles = info.files().size();
         segInfoStat.sizeMB = info.sizeInBytes()/(1024.*1024.);
-        msg("    size (MB)=" + nf.format(segInfoStat.sizeMB));
+        if (info.info.getAttribute(Lucene3xSegmentInfoFormat.DS_OFFSET_KEY) == null) {
+          // don't print size in bytes if its a 3.0 segment with shared docstores
+          msg("    size (MB)=" + nf.format(segInfoStat.sizeMB));
+        }
         Map<String,String> diagnostics = info.info.getDiagnostics();
         segInfoStat.diagnostics = diagnostics;
         if (diagnostics.size() > 0) {
@@ -491,7 +524,7 @@ public class CheckIndex {
 
         // TODO: we could append the info attributes() to the msg?
 
-        if (info.hasDeletions()) {
+        if (!info.hasDeletions()) {
           msg("    no deletions");
           segInfoStat.hasDeletions = false;
         }
@@ -1689,7 +1722,7 @@ public class CheckIndex {
                          "              times, to check more than one segment, eg '-segment _2 -segment _a'.\n" +
                          "              You can't use this with the -fix option\n" +
                          "  -dir-impl X: use a specific " + FSDirectory.class.getSimpleName() + " implementation. " +
-                         		"If no package is specified the " + FSDirectory.class.getPackage().getName() + " package will be used.\n" +
+                         "If no package is specified the " + FSDirectory.class.getPackage().getName() + " package will be used.\n" +
                          "\n" +
                          "**WARNING**: -fix should only be used on an emergency basis as it will cause\n" +
                          "documents (perhaps many) to be permanently removed from the index.  Always make\n" +

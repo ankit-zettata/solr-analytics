@@ -70,7 +70,7 @@ import java.util.Set;
  * the registered invariant param for wt.
  * 
  * If you want to override the contentType header returned for a given file, you can
- * set it directly using: {@link #USE_CONTENT_TYPE}.  For example, to get a plain text 
+ * set it directly using: {@link #USE_CONTENT_TYPE}.  For example, to get a plain text
  * version of schema.xml, try:
  * <pre>
  *   http://localhost:8983/solr/admin/file?file=schema.xml&contentType=text/plain
@@ -289,6 +289,6 @@ public class ShowFileRequestHandler extends RequestHandlerBase
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/handler/admin/ShowFileRequestHandler.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/handler/admin/ShowFileRequestHandler.java $";
   }
 }

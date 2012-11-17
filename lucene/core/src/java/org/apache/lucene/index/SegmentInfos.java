@@ -125,11 +125,10 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
    * Whenever you add a new format, make it 1 smaller (negative version logic)! */
   public static final int FORMAT_SEGMENTS_GEN_CURRENT = -2;
 
-  public int counter;    // used to name new segments
+  /** Used to name new segments. */
+  public int counter;
   
-  /**
-   * counts how often the index has been changed
-   */
+  /** Counts how often the index has been changed.  */
   public long version;
 
   private long generation;     // generation of the "segments_N" for the next commit
@@ -148,6 +147,16 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
    */
   private static PrintStream infoStream = null;
 
+  /** Sole constructor. Typically you call this and then
+   *  use {@link #read(Directory) or
+   *  #read(Directory,String)} to populate each {@link
+   *  SegmentInfoPerCommit}.  Alternatively, you can add/remove your
+   *  own {@link SegmentInfoPerCommit}s. */
+  public SegmentInfos() {
+  }
+
+  /** Returns {@link SegmentInfoPerCommit} at the provided
+   *  index. */
   public SegmentInfoPerCommit info(int i) {
     return segments.get(i);
   }
@@ -282,6 +291,9 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
         version = input.readLong();
         counter = input.readInt();
         int numSegments = input.readInt();
+        if (numSegments < 0) {
+          throw new CorruptIndexException("invalid segment count: " + numSegments + " (resource: " + input + ")");
+        }
         for(int seg=0;seg<numSegments;seg++) {
           String segName = input.readString();
           Codec codec = Codec.forName(input.readString());
@@ -290,7 +302,9 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
           info.setCodec(codec);
           long delGen = input.readLong();
           int delCount = input.readInt();
-          assert delCount <= info.getDocCount();
+          if (delCount < 0 || delCount > info.getDocCount()) {
+            throw new CorruptIndexException("invalid deletion count: " + delCount + " (resource: " + input + ")");
+          }
           add(new SegmentInfoPerCommit(info, delCount, delGen));
         }
         userData = input.readStringStringMap();
@@ -321,6 +335,8 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
     }
   }
 
+  /** Find the latest commit ({@code segments_N file}) and
+   *  load all {@link SegmentInfoPerCommit}s. */
   public final void read(Directory directory) throws IOException {
     generation = lastGeneration = -1;
 
@@ -380,11 +396,12 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
 
           if (!segmentWasUpgraded(directory, si)) {
 
+            String markerFileName = IndexFileNames.segmentFileName(si.name, "upgraded", Lucene3xSegmentInfoFormat.UPGRADED_SI_EXTENSION);
+            si.addFile(markerFileName);
+
             final String segmentFileName = write3xInfo(directory, si, IOContext.DEFAULT);
             upgradedSIFiles.add(segmentFileName);
             directory.sync(Collections.singletonList(segmentFileName));
-
-            String markerFileName = IndexFileNames.segmentFileName(si.name, "upgraded", Lucene3xSegmentInfoFormat.UPGRADED_SI_EXTENSION);
 
             // Write separate marker file indicating upgrade
             // is completed.  This way, if there is a JVM
@@ -478,6 +495,8 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
       output.writeStringStringMap(si.getDiagnostics());
       output.writeStringSet(si.files());
 
+      output.close();
+
       success = true;
     } finally {
       if (!success) {
@@ -487,8 +506,6 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
         } catch (Throwable t) {
           // Suppress so we keep throwing the original exception
         }
-      } else {
-        output.close();
       }
     }
 
@@ -524,9 +541,13 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
   public long getVersion() {
     return version;
   }
+
+  /** Returns current generation. */
   public long getGeneration() {
     return generation;
   }
+
+  /** Returns last succesfully read or written generation. */
   public long getLastGeneration() {
     return lastGeneration;
   }
@@ -554,7 +575,10 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
   public static void setDefaultGenLookaheadCount(int count) {
     defaultGenLookaheadCount = count;
   }
+
   /**
+   * Returns the {@code defaultGenLookaheadCount}.
+   *
    * @see #setDefaultGenLookaheadCount
    *
    * @lucene.experimental
@@ -564,6 +588,8 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
   }
 
   /**
+   * Returns {@code infoStream}.
+   *
    * @see #setInfoStream
    */
   public static PrintStream getInfoStream() {
@@ -593,14 +619,18 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
     
     final Directory directory;
 
+    /** Sole constructor. */ 
     public FindSegmentsFile(Directory directory) {
       this.directory = directory;
     }
 
+    /** Locate the most recent {@code segments} file and
+     *  run {@link #doBody} on it. */
     public Object run() throws IOException {
       return run(null);
     }
     
+    /** Run {@link #doBody} on the provided commit. */
     public Object run(IndexCommit commit) throws IOException {
       if (commit != null) {
         if (directory != commit.getDirectory())
@@ -818,25 +848,19 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
 
   final void rollbackCommit(Directory dir) {
     if (pendingSegnOutput != null) {
-      try {
-        pendingSegnOutput.close();
-      } catch (Throwable t) {
-        // Suppress so we keep throwing the original exception
-        // in our caller
-      }
+      // Suppress so we keep throwing the original exception
+      // in our caller
+      IOUtils.closeWhileHandlingException(pendingSegnOutput);
+      pendingSegnOutput = null;
 
       // Must carefully compute fileName from "generation"
       // since lastGeneration isn't incremented:
-      try {
-        final String segmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS,
-                                                                              "",
-                                                                             generation);
-        dir.deleteFile(segmentFileName);
-      } catch (Throwable t) {
-        // Suppress so we keep throwing the original exception
-        // in our caller
-      }
-      pendingSegnOutput = null;
+      final String segmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS,
+                                                                            "",
+                                                                           generation);
+      // Suppress so we keep throwing the original exception
+      // in our caller
+      IOUtils.deleteFilesIgnoringExceptions(dir, segmentFileName);
     }
   }
 
@@ -898,8 +922,19 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
         IOUtils.closeWhileHandlingException(pendingSegnOutput);
         rollbackCommit(dir);
       } else {
-        pendingSegnOutput.close();
-        pendingSegnOutput = null;
+        success = false;
+        try {
+          pendingSegnOutput.close();
+          success = true;
+        } finally {
+          if (!success) {
+            final String segmentFileName = IndexFileNames.fileNameFromGeneration(IndexFileNames.SEGMENTS,
+                                                                                 "",
+                                                                                 generation);
+            IOUtils.deleteFilesIgnoringExceptions(dir, segmentFileName);
+          }
+          pendingSegnOutput = null;
+        }
       }
     }
 
@@ -967,6 +1002,7 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
     finishCommit(dir);
   }
 
+  /** Returns readable description of this segment. */
   public String toString(Directory directory) {
     StringBuilder buffer = new StringBuilder();
     buffer.append(getSegmentsFileName()).append(": ");
@@ -981,6 +1017,10 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
     return buffer.toString();
   }
 
+  /** Return {@code userData} saved with this commit.
+   * 
+   * @see IndexWriter#commit(Map)
+   */
   public Map<String,String> getUserData() {
     return userData;
   }
@@ -1075,41 +1115,56 @@ public final class SegmentInfos implements Cloneable, Iterable<SegmentInfoPerCom
   public List<SegmentInfoPerCommit> asList() {
     return Collections.unmodifiableList(segments);
   }
-  
+
+  /** Returns number of {@link SegmentInfoPerCommit}s. */
   public int size() {
     return segments.size();
   }
 
+  /** Appends the provided {@link SegmentInfoPerCommit}. */
   public void add(SegmentInfoPerCommit si) {
     segments.add(si);
   }
   
+  /** Appends the provided {@link SegmentInfoPerCommit}s. */
   public void addAll(Iterable<SegmentInfoPerCommit> sis) {
     for (final SegmentInfoPerCommit si : sis) {
       this.add(si);
     }
   }
   
+  /** Clear all {@link SegmentInfoPerCommit}s. */
   public void clear() {
     segments.clear();
   }
 
-  /** WARNING: O(N) cost */
+  /** Remove the provided {@link SegmentInfoPerCommit}.
+   *
+   * <p><b>WARNING</b>: O(N) cost */
   public void remove(SegmentInfoPerCommit si) {
     segments.remove(si);
   }
   
-  /** WARNING: O(N) cost */
+  /** Remove the {@link SegmentInfoPerCommit} at the
+   * provided index.
+   *
+   * <p><b>WARNING</b>: O(N) cost */
   void remove(int index) {
     segments.remove(index);
   }
 
-  /** WARNING: O(N) cost */
+  /** Return true if the provided {@link
+   *  SegmentInfoPerCommit} is contained.
+   *
+   * <p><b>WARNING</b>: O(N) cost */
   boolean contains(SegmentInfoPerCommit si) {
     return segments.contains(si);
   }
 
-  /** WARNING: O(N) cost */
+  /** Returns index of the provided {@link
+   *  SegmentInfoPerCommit}.
+   *
+   * <p><b>WARNING</b>: O(N) cost */
   int indexOf(SegmentInfoPerCommit si) {
     return segments.indexOf(si);
   }

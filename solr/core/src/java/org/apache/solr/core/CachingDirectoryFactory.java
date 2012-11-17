@@ -42,11 +42,14 @@ import org.slf4j.LoggerFactory;
  * 
  */
 public abstract class CachingDirectoryFactory extends DirectoryFactory {
-  class CacheValue {
-    Directory directory;
-    int refCnt = 1;
+  protected class CacheValue {
+    public Directory directory;
+    public int refCnt = 1;
     public String path;
     public boolean doneWithDir = false;
+    public String toString() {
+      return "CachedDir<<" + directory.toString() + ";refCount=" + refCnt + ";path=" + path + ";done=" + doneWithDir + ">>";
+    }
   }
   
   private static Logger log = LoggerFactory
@@ -123,6 +126,9 @@ public abstract class CachingDirectoryFactory extends DirectoryFactory {
         throw new IllegalArgumentException("Unknown directory: " + directory
             + " " + byDirectoryCache);
       }
+
+      log.debug("Closing: {}", cacheValue);
+
       cacheValue.refCnt--;
       if (cacheValue.refCnt == 0 && cacheValue.doneWithDir) {
         log.info("Closing directory:" + cacheValue.path);
@@ -239,13 +245,6 @@ public abstract class CachingDirectoryFactory extends DirectoryFactory {
     close(directory);
   }
   
-  /**
-   * @param dir
-   * @param lockPath
-   * @param rawLockType
-   * @return
-   * @throws IOException
-   */
   private static Directory injectLockFactory(Directory dir, String lockPath,
       String rawLockType) throws IOException {
     if (null == rawLockType) {

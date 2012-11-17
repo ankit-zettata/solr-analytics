@@ -27,12 +27,14 @@ import java.util.Iterator;
 import java.util.Locale;
 import java.util.TreeMap;
 
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexFileNames;
+import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -97,20 +99,23 @@ public class BlockTreeTermsReader extends FieldsProducer {
 
   private final TreeMap<String,FieldReader> fields = new TreeMap<String,FieldReader>();
 
-  // keeps the dirStart offset
+  /** File offset where the directory starts in the terms file. */
   protected long dirOffset;
+
+  /** File offset where the directory starts in the index file. */
   protected long indexDirOffset;
 
   private String segment;
-  
-  public BlockTreeTermsReader(Directory dir, FieldInfos fieldInfos, String segment,
+
+  /** Sole constructor. */
+  public BlockTreeTermsReader(Directory dir, FieldInfos fieldInfos, SegmentInfo info,
                               PostingsReaderBase postingsReader, IOContext ioContext,
                               String segmentSuffix, int indexDivisor)
     throws IOException {
     
     this.postingsReader = postingsReader;
 
-    this.segment = segment;
+    this.segment = info.name;
     in = dir.openInput(IndexFileNames.segmentFileName(segment, segmentSuffix, BlockTreeTermsWriter.TERMS_EXTENSION),
                        ioContext);
 
@@ -135,6 +140,9 @@ public class BlockTreeTermsReader extends FieldsProducer {
       }
 
       final int numFields = in.readVInt();
+      if (numFields < 0) {
+        throw new CorruptIndexException("invalid numFields: " + numFields + " (resource=" + in + ")");
+      }
 
       for(int i=0;i<numFields;i++) {
         final int field = in.readVInt();
@@ -149,20 +157,35 @@ public class BlockTreeTermsReader extends FieldsProducer {
         final long sumTotalTermFreq = fieldInfo.getIndexOptions() == IndexOptions.DOCS_ONLY ? -1 : in.readVLong();
         final long sumDocFreq = in.readVLong();
         final int docCount = in.readVInt();
+        if (docCount < 0 || docCount > info.getDocCount()) { // #docs with field must be <= #docs
+          throw new CorruptIndexException("invalid docCount: " + docCount + " maxDoc: " + info.getDocCount() + " (resource=" + in + ")");
+        }
+        if (sumDocFreq < docCount) {  // #postings must be >= #docs with field
+          throw new CorruptIndexException("invalid sumDocFreq: " + sumDocFreq + " docCount: " + docCount + " (resource=" + in + ")");
+        }
+        if (sumTotalTermFreq != -1 && sumTotalTermFreq < sumDocFreq) { // #positions must be >= #postings
+          throw new CorruptIndexException("invalid sumTotalTermFreq: " + sumTotalTermFreq + " sumDocFreq: " + sumDocFreq + " (resource=" + in + ")");
+        }
         final long indexStartFP = indexDivisor != -1 ? indexIn.readVLong() : 0;
-        assert !fields.containsKey(fieldInfo.name);
-        fields.put(fieldInfo.name, new FieldReader(fieldInfo, numTerms, rootCode, sumTotalTermFreq, sumDocFreq, docCount, indexStartFP, indexIn));
+        FieldReader previous = fields.put(fieldInfo.name, new FieldReader(fieldInfo, numTerms, rootCode, sumTotalTermFreq, sumDocFreq, docCount, indexStartFP, indexIn));
+        if (previous != null) {
+          throw new CorruptIndexException("duplicate field: " + fieldInfo.name + " (resource=" + in + ")");
+        }
       }
+      if (indexDivisor != -1) {
+        indexIn.close();
+      }
+
       success = true;
     } finally {
       if (!success) {
+        // this.close() will close in:
         IOUtils.closeWhileHandlingException(indexIn, this);
-      } else if (indexDivisor != -1) {
-        indexIn.close();
       }
     }
   }
 
+  /** Reads terms file header. */
   protected void readHeader(IndexInput input) throws IOException {
     CodecUtil.checkHeader(input, BlockTreeTermsWriter.TERMS_CODEC_NAME,
                           BlockTreeTermsWriter.TERMS_VERSION_START,
@@ -170,13 +193,15 @@ public class BlockTreeTermsReader extends FieldsProducer {
     dirOffset = input.readLong();    
   }
 
+  /** Reads index file header. */
   protected void readIndexHeader(IndexInput input) throws IOException {
     CodecUtil.checkHeader(input, BlockTreeTermsWriter.TERMS_INDEX_CODEC_NAME,
                           BlockTreeTermsWriter.TERMS_INDEX_VERSION_START,
                           BlockTreeTermsWriter.TERMS_INDEX_VERSION_CURRENT);
     indexDirOffset = input.readLong();    
   }
-  
+
+  /** Seek {@code input} to the directory offset. */
   protected void seekDir(IndexInput input, long dirOffset)
       throws IOException {
     input.seek(dirOffset);
@@ -235,36 +260,70 @@ public class BlockTreeTermsReader extends FieldsProducer {
    * returned by {@link FieldReader#computeStats()}.
    */
   public static class Stats {
+    /** How many nodes in the index FST. */
     public int indexNodeCount;
+
+    /** How many arcs in the index FST. */
     public int indexArcCount;
+
+    /** Byte size of the index. */
     public int indexNumBytes;
 
+    /** Total number of terms in the field. */
     public long totalTermCount;
+
+    /** Total number of bytes (sum of term lengths) across all terms in the field. */
     public long totalTermBytes;
 
-
+    /** The number of normal (non-floor) blocks in the terms file. */
     public int nonFloorBlockCount;
+
+    /** The number of floor blocks (meta-blocks larger than the
+     *  allowed {@code maxItemsPerBlock}) in the terms file. */
     public int floorBlockCount;
+    
+    /** The number of sub-blocks within the floor blocks. */
     public int floorSubBlockCount;
+
+    /** The number of "internal" blocks (that have both
+     *  terms and sub-blocks). */
     public int mixedBlockCount;
+
+    /** The number of "leaf" blocks (blocks that have only
+     *  terms). */
     public int termsOnlyBlockCount;
+
+    /** The number of "internal" blocks that do not contain
+     *  terms (have only sub-blocks). */
     public int subBlocksOnlyBlockCount;
+
+    /** Total number of blocks. */
     public int totalBlockCount;
 
+    /** Number of blocks at each prefix depth. */
     public int[] blockCountByPrefixLen = new int[10];
     private int startBlockCount;
     private int endBlockCount;
+
+    /** Total number of bytes used to store term suffixes. */
     public long totalBlockSuffixBytes;
+
+    /** Total number of bytes used to store term stats (not
+     *  including what the {@link PostingsBaseFormat}
+     *  stores. */
     public long totalBlockStatsBytes;
 
-    // Postings impl plus the other few vInts stored in
-    // the frame:
+    /** Total bytes stored by the {@link PostingsBaseFormat},
+     *  plus the other few vInts stored in the frame. */
     public long totalBlockOtherBytes;
 
+    /** Segment name. */
     public final String segment;
+
+    /** Field name. */
     public final String field;
 
-    public Stats(String segment, String field) {
+    Stats(String segment, String field) {
       this.segment = segment;
       this.field = field;
     }
@@ -370,6 +429,7 @@ public class BlockTreeTermsReader extends FieldsProducer {
   final Outputs<BytesRef> fstOutputs = ByteSequenceOutputs.getSingleton();
   final BytesRef NO_OUTPUT = fstOutputs.getNoOutput();
 
+  /** BlockTree's implementation of {@link Terms}. */
   public final class FieldReader extends Terms {
     final long numTerms;
     final FieldInfo fieldInfo;

@@ -86,7 +86,7 @@ public class TimeLimitingCollector extends Collector {
    * set the baseline through this method in your prelude.
    * <p>
    * Example usage:
-   * <pre>
+   * <pre class="prettyprint">
    *   Counter clock = ...;
    *   long baseline = clock.get();
    *   // ... prepare search
@@ -96,7 +96,6 @@ public class TimeLimitingCollector extends Collector {
    * </pre>
    * </p>
    * @see #setBaseline() 
-   * @param clockTime
    */
   public void setBaseline(long clockTime) {
     t0 = clockTime;

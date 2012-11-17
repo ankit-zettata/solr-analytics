@@ -86,8 +86,6 @@ public class MultiPhraseQuery extends Query {
    * Allows to specify the relative position of terms within the phrase.
    * 
    * @see PhraseQuery#add(Term, int)
-   * @param terms
-   * @param position
    */
   public void add(Term[] terms, int position) {
     if (termArrays.size() == 0)
@@ -110,7 +108,7 @@ public class MultiPhraseQuery extends Query {
    * Do not modify the List or its contents.
    */
   public List<Term[]> getTermArrays() {
-	  return Collections.unmodifiableList(termArrays);
+    return Collections.unmodifiableList(termArrays);
   }
 
   /**

@@ -178,7 +178,7 @@ public class DataImportHandler extends RequestHandlerBase implements
             rsp.add("mode", "debug");
             rsp.add("documents", requestParams.getDebugInfo().debugDocuments);
             if (requestParams.getDebugInfo().debugVerboseOutput != null) {
-            	rsp.add("verbose-output", requestParams.getDebugInfo().debugVerboseOutput);
+              rsp.add("verbose-output", requestParams.getDebugInfo().debugVerboseOutput);
             }
           } else {
             message = DataImporter.MSG.DEBUG_NOT_ENABLED;
@@ -284,7 +284,7 @@ public class DataImportHandler extends RequestHandlerBase implements
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/contrib/dataimporthandler/src/java/org/apache/solr/handler/dataimport/DataImportHandler.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/contrib/dataimporthandler/src/java/org/apache/solr/handler/dataimport/DataImportHandler.java $";
   }
 
   public static final String ENABLE_DEBUG = "enableDebug";

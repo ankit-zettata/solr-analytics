@@ -33,6 +33,7 @@ import org.apache.lucene.index.FieldInfo.IndexOptions;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.PriorityQueue;
@@ -53,6 +54,7 @@ import org.apache.solr.schema.FieldType;
 import org.apache.solr.update.SolrIndexWriter;
 import org.apache.solr.schema.IndexSchema;
 import org.apache.solr.schema.SchemaField;
+import org.apache.solr.schema.CopyField;
 import org.apache.solr.search.SolrIndexSearcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -343,7 +345,7 @@ public class LukeRequestHandler extends RequestHandlerBase
       if(sfield != null && sfield.indexed() ) {
         // In the pre-4.0 days, this did a veeeery expensive range query. But we can be much faster now,
         // so just do this all the time.
-        Document doc = getFirstLiveDoc(reader, fieldName, terms);
+        Document doc = getFirstLiveDoc(terms, reader);
 
 
         if( doc != null ) {
@@ -377,7 +379,7 @@ public class LukeRequestHandler extends RequestHandlerBase
   // Just get a document with the term in it, the first one will do!
   // Is there a better way to do this? Shouldn't actually be very costly
   // to do it this way.
-  private static Document getFirstLiveDoc(AtomicReader reader, String fieldName, Terms terms) throws IOException {
+  private static Document getFirstLiveDoc(Terms terms, AtomicReader reader) throws IOException {
     DocsEnum docsEnum = null;
     TermsEnum termsEnum = terms.iterator(null);
     BytesRef text;
@@ -387,16 +389,9 @@ public class LukeRequestHandler extends RequestHandlerBase
       if (text == null) { // Ran off the end of the terms enum without finding any live docs with that field in them.
         return null;
       }
-      Term term = new Term(fieldName, text);
-      docsEnum = reader.termDocsEnum(reader.getLiveDocs(),
-          term.field(),
-          new BytesRef(term.text()),
-          0);
-      if (docsEnum != null) {
-        int docId;
-        if ((docId = docsEnum.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-          return reader.document(docId);
-        }
+      docsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, 0);
+      if (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+        return reader.document(docsEnum.docID());
       }
     }
     return null;
@@ -522,8 +517,8 @@ public class LukeRequestHandler extends RequestHandlerBase
     if (ft.getAnalyzer().getPositionIncrementGap(f.getName()) != 0) {
       field.add("positionIncrementGap", ft.getAnalyzer().getPositionIncrementGap(f.getName()));
     }
-    field.add("copyDests", schema.getCopyFieldsList(f.getName()));
-    field.add("copySources", schema.getCopySources(f.getName()));
+    field.add("copyDests", toListOfStringDests(schema.getCopyFieldsList(f.getName())));
+    field.add("copySources", toListOfStrings(schema.getCopySources(f.getName())));
 
 
     fields.put( f.getName(), field );
@@ -617,6 +612,22 @@ public class LukeRequestHandler extends RequestHandlerBase
     // Add a histogram
     fieldMap.add("histogram", tiq.histogram.toNamedList());
   }
+
+  private static List<String> toListOfStrings(SchemaField[] raw) {
+    List<String> result = new ArrayList<String>(raw.length);
+    for (SchemaField f : raw) {
+      result.add(f.getName());
+    }
+    return result;
+  }
+  private static List<String> toListOfStringDests(List<CopyField> raw) {
+    List<String> result = new ArrayList<String>(raw.size());
+    for (CopyField f : raw) {
+      result.add(f.getDestination().getName());
+    }
+    return result;
+  }
+
   //////////////////////// SolrInfoMBeans methods //////////////////////
 
   @Override
@@ -626,7 +637,7 @@ public class LukeRequestHandler extends RequestHandlerBase
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/handler/admin/LukeRequestHandler.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/handler/admin/LukeRequestHandler.java $";
   }
 
   @Override

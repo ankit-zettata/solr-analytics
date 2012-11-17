@@ -67,6 +67,7 @@ public class FilteredQuery extends Query {
    * filter is < 100.
    * 
    * @lucene.internal
+   * @lucene.experimental
    */
   protected boolean useRandomAccess(Bits bits, int firstFilterDoc) {
     return firstFilterDoc < 100;
@@ -260,10 +261,12 @@ public class FilteredQuery extends Query {
     }
   }
 
+  /** Returns this FilteredQuery's (unfiltered) Query */
   public final Query getQuery() {
     return query;
   }
 
+  /** Returns this FilteredQuery's filter */
   public final Filter getFilter() {
     return filter;
   }

@@ -17,26 +17,31 @@ package org.apache.solr.handler.component;
  * limitations under the License.
  */
 
+import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
 import org.apache.solr.client.solrj.SolrResponse;
-import org.apache.solr.client.solrj.util.ClientUtils;
 import org.apache.solr.cloud.CloudDescriptor;
 import org.apache.solr.cloud.ZkController;
 import org.apache.solr.common.SolrDocument;
 import org.apache.solr.common.SolrDocumentList;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.common.cloud.*;
+import org.apache.solr.common.cloud.ClusterState;
 import org.apache.solr.common.params.ModifiableSolrParams;
 import org.apache.solr.common.params.ShardParams;
 import org.apache.solr.common.params.SolrParams;
 import org.apache.solr.common.util.Hash;
 import org.apache.solr.common.util.NamedList;
 import org.apache.solr.common.util.StrUtils;
-import org.apache.solr.core.CoreDescriptor;
 import org.apache.solr.core.SolrCore;
 import org.apache.solr.request.SolrQueryRequest;
 import org.apache.solr.response.SolrQueryResponse;
@@ -53,10 +58,6 @@ import org.apache.solr.update.UpdateLog;
 import org.apache.solr.util.RefCounted;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.io.IOException;
-import java.net.URL;
-import java.util.*;
 
 
 public class RealTimeGetComponent extends SearchComponent
@@ -301,7 +302,6 @@ public class RealTimeGetComponent extends SearchComponent
   private static SolrDocument toSolrDoc(SolrInputDocument sdoc, IndexSchema schema) {
     // TODO: do something more performant than this double conversion
     Document doc = DocumentBuilder.toDocument(sdoc, schema);
-    List<IndexableField> fields = doc.getFields();
 
     // copy the stored fields only
     Document out = new Document();
@@ -351,8 +351,6 @@ public class RealTimeGetComponent extends SearchComponent
 
     // if shards=... then use that
     if (zkController != null && params.get("shards") == null) {
-      SchemaField sf = rb.req.getSchema().getUniqueKeyField();
-
       CloudDescriptor cloudDescriptor = rb.req.getCore().getCoreDescriptor().getCloudDescriptor();
 
       String collection = cloudDescriptor.getCollectionName();
@@ -361,9 +359,7 @@ public class RealTimeGetComponent extends SearchComponent
       
       Map<String, List<String>> shardToId = new HashMap<String, List<String>>();
       for (String id : allIds) {
-        BytesRef br = new BytesRef();
-        sf.getType().readableToIndexed(id, br);
-        int hash = Hash.murmurhash3_x86_32(br.bytes, br.offset, br.length, 0);
+        int hash = Hash.murmurhash3_x86_32(id, 0, id.length(), 0);
         String shard = clusterState.getShard(hash,  collection);
 
         List<String> idsForShard = shardToId.get(shard);
@@ -477,7 +473,7 @@ public class RealTimeGetComponent extends SearchComponent
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/handler/component/RealTimeGetComponent.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/handler/component/RealTimeGetComponent.java $";
   }
 
   @Override
@@ -525,8 +521,9 @@ public class RealTimeGetComponent extends SearchComponent
   public void processSync(ResponseBuilder rb, int nVersions, String sync) {
     List<String> replicas = StrUtils.splitSmart(sync, ",", true);
     
+    boolean cantReachIsSuccess = rb.req.getParams().getBool("cantReachIsSuccess", false);
     
-    PeerSync peerSync = new PeerSync(rb.req.getCore(), replicas, nVersions);
+    PeerSync peerSync = new PeerSync(rb.req.getCore(), replicas, nVersions, cantReachIsSuccess);
     boolean success = peerSync.sync();
     
     // TODO: more complex response?

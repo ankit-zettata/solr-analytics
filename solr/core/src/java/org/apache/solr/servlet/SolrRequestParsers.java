@@ -126,8 +126,6 @@ public class SolrRequestParsers
     // The content type will be applied to all streaming content
     String contentType = params.get( CommonParams.STREAM_CONTENTTYPE );
     
-    
-      
     // Handle anything with a remoteURL
     String[] strs = params.getParams( CommonParams.STREAM_URL );
     if( strs != null ) {

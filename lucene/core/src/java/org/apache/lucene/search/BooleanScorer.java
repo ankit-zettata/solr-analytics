@@ -254,7 +254,12 @@ final class BooleanScorer extends Scorer {
           // clauses
           //&& (current.bits & requiredMask) == requiredMask) {
           
-          // TODO: can we remove this?  
+          // NOTE: Lucene always passes max =
+          // Integer.MAX_VALUE today, because we never embed
+          // a BooleanScorer inside another (even though
+          // that should work)... but in theory an outside
+          // app could pass a different max so we must check
+          // it:
           if (current.doc >= max){
             tmp = current;
             current = current.next;
@@ -318,7 +323,7 @@ final class BooleanScorer extends Scorer {
 
   @Override
   public float freq() throws IOException {
-    return current.coord;
+    throw new UnsupportedOperationException();
   }
 
   @Override
@@ -340,11 +345,6 @@ final class BooleanScorer extends Scorer {
   
   @Override
   public Collection<ChildScorer> getChildren() {
-    List<ChildScorer> children = new ArrayList<ChildScorer>();
-    for (SubScorer sub = scorers; sub != null; sub = sub.next) {
-      // TODO: fix this if BQ ever sends us required clauses
-      children.add(new ChildScorer(sub.scorer, sub.prohibited ? "MUST_NOT" : "SHOULD"));
-    }
-    return children;
+    throw new UnsupportedOperationException();
   }
 }

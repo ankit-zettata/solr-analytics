@@ -411,10 +411,14 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
     try {
       final BytesRef catTerm = new BytesRef(categoryPath.toString(delimiter));
       for (AtomicReaderContext ctx : reader.leaves()) {
-        DocsEnum docs = ctx.reader().termDocsEnum(null, Consts.FULL, catTerm, 0);
-        if (docs != null) {
-          doc = docs.nextDoc() + ctx.docBase;
-          break;
+        Terms terms = ctx.reader().terms(Consts.FULL);
+        if (terms != null) {
+          TermsEnum termsEnum = terms.iterator(null);
+          if (termsEnum.seekExact(catTerm, true)) {
+            // TODO: is it really ok that null is passed here as liveDocs?
+            DocsEnum docs = termsEnum.docs(null, null, 0);
+            doc = docs.nextDoc() + ctx.docBase;
+          }
         }
       }
     } finally {
@@ -452,10 +456,14 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
     try {
       final BytesRef catTerm = new BytesRef(categoryPath.toString(delimiter, prefixLen));
       for (AtomicReaderContext ctx : reader.leaves()) {
-        DocsEnum docs = ctx.reader().termDocsEnum(null, Consts.FULL, catTerm, 0);
-        if (docs != null) {
-          doc = docs.nextDoc() + ctx.docBase;
-          break;
+        Terms terms = ctx.reader().terms(Consts.FULL);
+        if (terms != null) {
+          TermsEnum termsEnum = terms.iterator(null);
+          if (termsEnum.seekExact(catTerm, true)) {
+            // TODO: is it really ok that null is passed here as liveDocs?
+            DocsEnum docs = termsEnum.docs(null, null, 0);
+            doc = docs.nextDoc() + ctx.docBase;
+          }
         }
       }
     } finally {
@@ -848,13 +856,7 @@ public class DirectoryTaxonomyWriter implements TaxonomyWriter {
           String value = te.term().utf8ToString();
           cp.clear();
           cp.add(value, Consts.DEFAULT_DELIMITER);
-          int ordinal = findCategory(cp);
-          if (ordinal < 0) {
-            // NOTE: call addCategory so that it works well in a multi-threaded
-            // environment, in case e.g. a thread just added the category, after
-            // the findCategory() call above failed to find it.
-            ordinal = addCategory(cp);
-          }
+          final int ordinal = addCategory(cp);
           docs = te.docs(null, docs, 0);
           ordinalMap.addMapping(docs.nextDoc() + base, ordinal);
         }

@@ -128,7 +128,6 @@ public class XMLLoader extends ContentStreamLoader {
         throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, te.getMessage(), te);
       } finally {
         IOUtils.closeQuietly(is);
-        stream.close();
       }
       // second step feed the intermediate DOM tree into StAX parser:
       try {
@@ -161,7 +160,6 @@ public class XMLLoader extends ContentStreamLoader {
       } finally {
         if (parser != null) parser.close();
         IOUtils.closeQuietly(is);
-        stream.close();
       }
     }
   }

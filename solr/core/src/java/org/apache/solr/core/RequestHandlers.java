@@ -286,7 +286,7 @@ public final class RequestHandlers {
     }
 
     public String getSource() {
-      String rev = "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/core/RequestHandlers.java $";
+      String rev = "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/core/RequestHandlers.java $";
       if( _handler != null ) {
         rev += "\n" + _handler.getSource();
       }

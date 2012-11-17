@@ -53,17 +53,25 @@ import org.apache.lucene.util.IOUtils;
  */
 
 public abstract class PerFieldPostingsFormat extends PostingsFormat {
+  /** Name of this {@link PostingsFormat}. */
   public static final String PER_FIELD_NAME = "PerField40";
-  
+
+  /** {@link FieldInfo} attribute name used to store the
+   *  format name for each field. */
   public static final String PER_FIELD_FORMAT_KEY = PerFieldPostingsFormat.class.getSimpleName() + ".format";
+
+  /** {@link FieldInfo} attribute name used to store the
+   *  segment suffix name for each field. */
   public static final String PER_FIELD_SUFFIX_KEY = PerFieldPostingsFormat.class.getSimpleName() + ".suffix";
 
+  
+  /** Sole constructor. */
   public PerFieldPostingsFormat() {
     super(PER_FIELD_NAME);
   }
 
   @Override
-  public FieldsConsumer fieldsConsumer(SegmentWriteState state)
+  public final FieldsConsumer fieldsConsumer(SegmentWriteState state)
       throws IOException {
     return new FieldsWriter(state);
   }
@@ -220,13 +228,16 @@ public abstract class PerFieldPostingsFormat extends PostingsFormat {
   }
 
   @Override
-  public FieldsProducer fieldsProducer(SegmentReadState state)
+  public final FieldsProducer fieldsProducer(SegmentReadState state)
       throws IOException {
     return new FieldsReader(state);
   }
 
-  // NOTE: only called during writing; for reading we read
-  // all we need from the index (ie we save the field ->
-  // format mapping)
+  /** 
+   * Returns the postings format that should be used for writing 
+   * new segments of <code>field</code>.
+   * <p>
+   * The field to format mapping is written to the index, so
+   * this method is only invoked when writing, not when reading. */
   public abstract PostingsFormat getPostingsFormatForField(String field);
 }

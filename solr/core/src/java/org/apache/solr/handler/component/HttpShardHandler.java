@@ -42,6 +42,7 @@ import org.apache.solr.cloud.ZkController;
 import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrException.ErrorCode;
 import org.apache.solr.common.cloud.ClusterState;
+import org.apache.solr.common.cloud.Replica;
 import org.apache.solr.common.cloud.Slice;
 import org.apache.solr.common.cloud.ZkCoreNodeProps;
 import org.apache.solr.common.cloud.ZkNodeProps;
@@ -146,7 +147,7 @@ public class HttpShardHandler extends ShardHandler {
           // SolrRequest req = new QueryRequest(SolrRequest.METHOD.POST, "/select");
           // use generic request to avoid extra processing of queries
           QueryRequest req = new QueryRequest(params);
-          req.setMethod(SolrRequest.METHOD.GET);  // use GET to enable "NOT MODIFIED" responses
+          req.setMethod(SolrRequest.METHOD.POST);
 
           // no need to set the response parser as binary is the default
           // req.setResponseParser(new BinaryResponseParser());
@@ -350,7 +351,7 @@ public class HttpShardHandler extends ShardHandler {
               // throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, "no such shard: " + sliceName);
             }
 
-            Map<String, ZkNodeProps> sliceShards = slice.getShards();
+            Map<String, Replica> sliceShards = slice.getReplicasMap();
 
             // For now, recreate the | delimited list of equivalent servers
             Set<String> liveNodes = clusterState.getLiveNodes();

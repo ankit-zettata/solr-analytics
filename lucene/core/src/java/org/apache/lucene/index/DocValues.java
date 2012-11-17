@@ -25,6 +25,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.document.ByteDocValuesField; // javadocs
 import org.apache.lucene.document.DerefBytesDocValuesField; // javadocs
 import org.apache.lucene.document.DoubleDocValuesField; // javadocs
+import org.apache.lucene.document.Field; // javadocs
 import org.apache.lucene.document.FloatDocValuesField; // javadocs
 import org.apache.lucene.document.IntDocValuesField; // javadocs
 import org.apache.lucene.document.LongDocValuesField; // javadocs
@@ -60,29 +61,46 @@ import org.apache.lucene.util.packed.PackedInts;
  * into a 3rd type like {@link Type#BYTES_VAR_STRAIGHT} to prevent data loss and merge exceptions.
  * This behavior is considered <i>best-effort</i> might change in future releases.
  * </p>
+* <p>
+ * DocValues are exposed via the {@link Field} API with type safe
+ * specializations for each type variant:
+ * <ul>
+ * <li> {@link ByteDocValuesField} - for adding byte values to the index</li>
+ * <li> {@link ShortDocValuesField} - for adding short values to the index</li>
+ * <li> {@link IntDocValuesField} - for adding int values to the index</li>
+ * <li> {@link LongDocValuesField} - for adding long values to the index</li>
+ * <li> {@link FloatDocValuesField} - for adding float values to the index</li>
+ * <li> {@link DoubleDocValuesField} - for adding double values to the index</li>
+ * <li> {@link PackedLongDocValuesField} - for adding packed long values to the
+ * index</li>
+ * <li> {@link SortedBytesDocValuesField} - for adding sorted {@link BytesRef}
+ * values to the index</li>
+ * <li> {@link StraightBytesDocValuesField} - for adding straight
+ * {@link BytesRef} values to the index</li>
+ * <li> {@link DerefBytesDocValuesField} - for adding deref {@link BytesRef}
+ * values to the index</li>
+ * </ul>
+ * See {@link Type} for limitations of each type variant.
+ * <p> 
+ * <p>
  * 
- * @see Type for limitations and default implementation documentation
- * @see ByteDocValuesField for adding byte values to the index
- * @see ShortDocValuesField for adding short values to the index
- * @see IntDocValuesField for adding int values to the index
- * @see LongDocValuesField for adding long values to the index
- * @see FloatDocValuesField for adding float values to the index
- * @see DoubleDocValuesField for adding double values to the index
- * @see PackedLongDocValuesField for adding packed long values to the index
- * @see SortedBytesDocValuesField for adding sorted {@link BytesRef} values to the index
- * @see StraightBytesDocValuesField for adding straight {@link BytesRef} values to the index
- * @see DerefBytesDocValuesField for adding deref {@link BytesRef} values to the index
- * @see DocValuesFormat#docsConsumer(org.apache.lucene.index.PerDocWriteState) for
- *      customization
+ * @see DocValuesFormat#docsConsumer(org.apache.lucene.index.PerDocWriteState)
+ *      
  * @lucene.experimental
  */
 public abstract class DocValues implements Closeable {
 
+  /** Zero length DocValues array. */
   public static final DocValues[] EMPTY_ARRAY = new DocValues[0];
 
   private volatile SourceCache cache = new SourceCache.DirectSourceCache();
   private final Object cacheLock = new Object();
   
+  /** Sole constructor. (For invocation by subclass 
+   *  constructors, typically implicit.) */
+  protected DocValues() {
+  }
+
   /**
    * Loads a new {@link Source} instance for this {@link DocValues} field
    * instance. Source instances returned from this method are not cached. It is
@@ -173,9 +191,12 @@ public abstract class DocValues implements Closeable {
    * @see DocValues#getDirectSource()
    */
   public static abstract class Source {
-    
+
+    /** {@link Type} of this {@code Source}. */
     protected final Type type;
 
+    /** Sole constructor. (For invocation by subclass 
+     *  constructors, typically implicit.) */
     protected Source(Type type) {
       this.type = type;
     }
@@ -261,6 +282,8 @@ public abstract class DocValues implements Closeable {
 
     private final Comparator<BytesRef> comparator;
 
+    /** Sole constructor. (For invocation by subclass 
+     * constructors, typically implicit.) */
     protected SortedSource(Type type, Comparator<BytesRef> comparator) {
       super(type);
       this.comparator = comparator;
@@ -685,6 +708,11 @@ public abstract class DocValues implements Closeable {
    */
   public static abstract class SourceCache {
 
+    /** Sole constructor. (For invocation by subclass 
+     * constructors, typically implicit.) */
+    protected SourceCache() {
+    }
+
     /**
      * Atomically loads a {@link Source} into the cache from the given
      * {@link DocValues} and returns it iff no other {@link Source} has already
@@ -716,6 +744,10 @@ public abstract class DocValues implements Closeable {
      */
     public static final class DirectSourceCache extends SourceCache {
       private Source ref;
+
+      /** Sole constructor. */
+      public DirectSourceCache() {
+      }
 
       public synchronized Source load(DocValues values) throws IOException {
         if (ref == null) {

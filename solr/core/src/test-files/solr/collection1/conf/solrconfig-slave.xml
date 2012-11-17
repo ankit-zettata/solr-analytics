@@ -17,7 +17,7 @@
  limitations under the License.
 -->
 
-<!-- $Id: solrconfig-slave.xml 1353896 2012-06-26 09:45:30Z siren $
+<!-- $Id: solrconfig-slave.xml 1387098 2012-09-18 11:38:56Z erick $
      $Source$
      $Name$
   -->
@@ -51,9 +51,10 @@
 
   <requestHandler name="/replication" class="solr.ReplicationHandler">
 	<lst name="slave">
-		<str name="masterUrl">http://localhost:TEST_PORT/solr</str>
+		<str name="masterUrl">http://127.0.0.1:TEST_PORT/solr</str>
 		<str name="pollInterval">00:00:01</str>
-	</lst>
+        <str name="compression">COMPRESSION</str>
+     </lst>
   </requestHandler>
 
 

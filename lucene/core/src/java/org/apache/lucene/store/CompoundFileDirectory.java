@@ -159,8 +159,10 @@ public final class CompoundFileDirectory extends Directory {
         for (int i = 0; i < numEntries; i++) {
           final FileEntry fileEntry = new FileEntry();
           final String id = entriesStream.readString();
-          assert !mapping.containsKey(id): "id=" + id + " was written multiple times in the CFS";
-          mapping.put(id, fileEntry);
+          FileEntry previous = mapping.put(id, fileEntry);
+          if (previous != null) {
+            throw new CorruptIndexException("Duplicate cfs entry id=" + id + " in CFS: " + entriesStream);
+          }
           fileEntry.offset = entriesStream.readLong();
           fileEntry.length = entriesStream.readLong();
         }
@@ -220,9 +222,10 @@ public final class CompoundFileDirectory extends Directory {
       entry = new FileEntry();
       entry.offset = offset;
 
-      assert !entries.containsKey(id);
-
-      entries.put(id, entry);
+      FileEntry previous = entries.put(id, entry);
+      if (previous != null) {
+        throw new CorruptIndexException("Duplicate cfs entry id=" + id + " in CFS: " + stream);
+      }
     }
     
     // set the length of the final entry
@@ -297,14 +300,14 @@ public final class CompoundFileDirectory extends Directory {
   }
   
   /** Not implemented
-   * @throws UnsupportedOperationException */
+   * @throws UnsupportedOperationException always: not supported by CFS */
   @Override
   public void deleteFile(String name) {
     throw new UnsupportedOperationException();
   }
   
   /** Not implemented
-   * @throws UnsupportedOperationException */
+   * @throws UnsupportedOperationException always: not supported by CFS */
   public void renameFile(String from, String to) {
     throw new UnsupportedOperationException();
   }
@@ -335,7 +338,7 @@ public final class CompoundFileDirectory extends Directory {
   }
   
   /** Not implemented
-   * @throws UnsupportedOperationException */
+   * @throws UnsupportedOperationException always: not supported by CFS */
   @Override
   public Lock makeLock(String name) {
     throw new UnsupportedOperationException();

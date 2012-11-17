@@ -296,7 +296,7 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
   /**
    * Helpful for testing without loading config.xml
    *
-   * @throws IOException
+   * @throws IOException If there is a low-level I/O error.
    */
   void setTopQueryResults(IndexReader reader, String query, String[] ids, String[] ex) throws IOException {
     if (ids == null) {
@@ -385,9 +385,6 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
             //we are only going to mark items as excluded, not actually exclude them.  This works
             //with the EditorialMarkerFactory
             rb.req.getContext().put(EXCLUDED, booster.excludeIds);
-            for (TermQuery tq : booster.exclude) {
-              newq.add(new BooleanClause(tq, BooleanClause.Occur.SHOULD));
-            }
           }
         }
         rb.setQuery(newq);
@@ -462,7 +459,7 @@ public class QueryElevationComponent extends SearchComponent implements SolrCore
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/handler/component/QueryElevationComponent.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/handler/component/QueryElevationComponent.java $";
   }
 
   @Override

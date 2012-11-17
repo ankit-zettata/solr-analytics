@@ -50,7 +50,7 @@ class PreFlexRWNormsConsumer extends PerDocConsumer {
   private static final String NORMS_EXTENSION = "nrm";
   
   /** Extension of separate norms file
-   * @deprecated */
+   * @deprecated Only for reading existing 3.x indexes */
   @Deprecated
   private static final String SEPARATE_NORMS_EXTENSION = "s";
 
@@ -291,7 +291,7 @@ class PreFlexRWNormsConsumer extends PerDocConsumer {
         directory.deleteFile(IndexFileNames.segmentFileName(segment, "",
             NORMS_EXTENSION));
       }
-    } catch (IOException e) {
+    } catch (Throwable e) {
       // ignore
     }
   }

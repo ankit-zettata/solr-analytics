@@ -134,6 +134,9 @@ def checkClassDetails(fullPath):
     print(fullPath)
     for cat, item, message in errors:
       print('  broken details HTML: %s: %s: %s' % (cat, item, message))
+    return True
+  else:
+    return False
 
 def checkClassSummaries(fullPath):
 
@@ -299,8 +302,8 @@ def checkPackageSummaries(root, level='class'):
   True if there are problems.
   """
 
-  if level != 'class' and level != 'package' and level != 'method':
-    print('unsupported level: %s, must be "class" or "package" or "method"' % level)
+  if level != 'class' and level != 'package' and level != 'method' and level != 'none':
+    print('unsupported level: %s, must be "class" or "package" or "method" or "none"' % level)
     sys.exit(1)
   
   #for dirPath, dirNames, fileNames in os.walk('%s/lucene/build/docs/api' % root):
@@ -326,26 +329,27 @@ def checkPackageSummaries(root, level='class'):
       continue
 
     if 'package-summary.html' in fileNames:
-      if level != 'package' and checkSummary('%s/package-summary.html' % dirPath):
+      if (level == 'class' or level == 'method') and checkSummary('%s/package-summary.html' % dirPath):
         anyMissing = True
-      if level == 'method': 
-        for fileName in fileNames:
-          fullPath = '%s/%s' % (dirPath, fileName)
-          if not fileName.startswith('package-') and fileName.endswith('.html') and os.path.isfile(fullPath):
+      for fileName in fileNames:
+        fullPath = '%s/%s' % (dirPath, fileName)
+        if not fileName.startswith('package-') and fileName.endswith('.html') and os.path.isfile(fullPath):
+          if level == 'method':
             if checkClassSummaries(fullPath):
               anyMissing = True
-            if checkClassDetails(fullPath):
-              anyMissing = True
+          # always look for broken html, regardless of level supplied
+          if checkClassDetails(fullPath):
+            anyMissing = True
               
     if 'overview-summary.html' in fileNames:        
-      if checkSummary('%s/overview-summary.html' % dirPath):
+      if level != 'none' and checkSummary('%s/overview-summary.html' % dirPath):
         anyMissing = True
 
   return anyMissing
 
 if __name__ == '__main__':
   if len(sys.argv) < 2 or len(sys.argv) > 3:
-    print('usage: %s <dir> [class|package|method]' % sys.argv[0])
+    print('usage: %s <dir> [none|package|class|method]' % sys.argv[0])
     sys.exit(1)
   if len(sys.argv) == 2:
     level = 'class'

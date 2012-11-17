@@ -738,6 +738,13 @@ public class DirectUpdateHandler2 extends UpdateHandler implements SolrCoreState
     }
   }
 
+  @Override
+  public void split(SplitIndexCommand cmd) throws IOException {
+    // TODO: do a commit first?
+    SolrIndexSplitter splitter = new SolrIndexSplitter(cmd);
+    splitter.split();
+  }
+
   /////////////////////////////////////////////////////////////////////
   // SolrInfoMBean stuff: Statistics and Module Info
   /////////////////////////////////////////////////////////////////////
@@ -759,7 +766,7 @@ public class DirectUpdateHandler2 extends UpdateHandler implements SolrCoreState
   }
 
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/update/DirectUpdateHandler2.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/update/DirectUpdateHandler2.java $";
   }
 
   public URL[] getDocs() {

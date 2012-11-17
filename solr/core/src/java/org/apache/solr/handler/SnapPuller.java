@@ -422,8 +422,6 @@ public class SnapPuller {
 
   /**
    * terminate the fsync service and wait for all the tasks to complete. If it is already terminated
-   *
-   * @throws Exception
    */
   private void terminateAndWaitFsyncService() throws Exception {
     if (fsyncService.isTerminated()) return;
@@ -555,7 +553,10 @@ public class SnapPuller {
      }
 
       // update our commit point to the right dir
-      solrCore.getUpdateHandler().commit(new CommitUpdateCommand(req, false));
+      CommitUpdateCommand cuc = new CommitUpdateCommand(req, false);
+      cuc.waitSearcher = false;
+      cuc.openSearcher = false;
+      solrCore.getUpdateHandler().commit(cuc);
 
     } finally {
       req.close();
@@ -967,6 +968,14 @@ public class SnapPuller {
 
       this.file = new File(copy2Dir, saveAs);
       
+      File parentDir = this.file.getParentFile();
+      if( ! parentDir.exists() ){
+        if ( ! parentDir.mkdirs() ) {
+          throw new SolrException(SolrException.ErrorCode.SERVER_ERROR,
+                                  "Failed to create (sub)directory for file: " + saveAs);
+        }
+      }
+      
       this.fileOutputStream = new FileOutputStream(file);
       this.fileChannel = this.fileOutputStream.getChannel();
 
@@ -1139,7 +1148,7 @@ public class SnapPuller {
         params.set(FILE, fileName);
       }
       if (useInternal) {
-        params.set(COMPRESSION, "internal"); 
+        params.set(COMPRESSION, "true"); 
       }
       //use checksum
       if (this.includeChecksum) {

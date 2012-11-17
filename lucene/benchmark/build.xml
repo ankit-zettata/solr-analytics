@@ -153,7 +153,7 @@
       <fileset dir="${common.dir}/analysis/icu/lib" includes="icu4j-49.1.jar"/>
       <path refid="base.classpath"/>
     	<fileset dir="lib">
-    	  <include name="commons-compress-1.3.jar"/>
+    	  <include name="commons-compress-1.4.1.jar"/>
     	  <include name="xercesImpl-2.9.1.jar"/>
     	  <include name="nekohtml-1.9.15.jar"/>
     	</fileset>
@@ -220,7 +220,8 @@
 	    </java>
 	    <echo>Benchmark output is in file: ${collation.output.file}</echo>
 	    <echo>Converting to JIRA table format...</echo>
-	    <exec executable="perl" output="${collation.jira.output.file}" failonerror="true">
+	    <exec executable="${perl.exe}" output="${collation.jira.output.file}" failonerror="true">
+        <arg value="-CSD"/>
 	      <arg value="scripts/collation.bm2jira.pl"/>
 	      <arg value="${collation.output.file}"/>
 	    </exec>
@@ -246,7 +247,8 @@
       </java>
       <echo>Benchmark output is in file: ${shingle.output.file}</echo>
       <echo>Converting to JIRA table format...</echo>
-      <exec executable="perl" output="${shingle.jira.output.file}" failonerror="true">
+      <exec executable="${perl.exe}" output="${shingle.jira.output.file}" failonerror="true">
+        <arg value="-CSD"/>
         <arg value="scripts/shingle.bm2jira.pl"/>
         <arg value="${shingle.output.file}"/>
       </exec>

@@ -160,7 +160,7 @@ public class MockTokenizer extends Tokenizer {
           return Character.toCodePoint((char) ch, (char) ch2);
         } else {
           assert false : "stream ends with unpaired high surrogate: " + Integer.toHexString(ch);
-	}
+        }
       }
       return ch;
     }
@@ -227,10 +227,10 @@ public class MockTokenizer extends Tokenizer {
   }
 
   @Override
-  public void setReader(Reader input) throws IOException {
-    super.setReader(input);
+  boolean setReaderTestPoint() {
     assert !enableChecks || streamState == State.CLOSE : "setReader() called in wrong state: " + streamState;
     streamState = State.SETREADER;
+    return true;
   }
 
   @Override

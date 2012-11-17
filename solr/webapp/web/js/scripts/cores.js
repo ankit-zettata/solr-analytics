@@ -201,25 +201,19 @@ sammy.get
                   .html( core_data.index.maxDoc );
 
                 $( '.optimized dd', index_data_element )
-                  .addClass( core_data.index.optimized ? 'ico-1' : 'ico-0' );
+                  .addClass( !core_data.index.hasDeletions ? 'ico-1' : 'ico-0' );
 
                 $( '#actions #optimize', cores_element )
                   .show();
 
                 $( '.optimized dd span', index_data_element )
-                  .html( core_data.index.optimized ? 'yes' : 'no' );
+                  .html( !core_data.index.hasDeletions ? 'yes' : 'no' );
 
                 $( '.current dd', index_data_element )
                   .addClass( core_data.index.current ? 'ico-1' : 'ico-0' );
 
                 $( '.current dd span', index_data_element )
                   .html( core_data.index.current ? 'yes' : 'no' );
-
-                $( '.hasDeletions dd', index_data_element )
-                  .addClass( core_data.index.hasDeletions ? 'ico-1' : 'ico-0' );
-
-                $( '.hasDeletions dd span', index_data_element )
-                  .html( core_data.index.hasDeletions ? 'yes' : 'no' );
 
                 $( '.directory dd', index_data_element )
                   .html
@@ -365,6 +359,12 @@ sammy.get
                       },
                       error : function( xhr, text_status, error_thrown )
                       {
+                        var response = null;
+                        eval( 'response = ' + xhr.responseText + ';' );
+
+                        var error_elem = $( '.error', div_action.filter( ':visible' ) );
+                        error_elem.show();
+                        $( 'span', error_elem ).text( response.error.msg );
                       },
                       complete : function()
                       {

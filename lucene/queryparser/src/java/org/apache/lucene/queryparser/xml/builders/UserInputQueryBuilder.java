@@ -82,12 +82,10 @@ public class UserInputQueryBuilder implements QueryBuilder {
   /**
    * Method to create a QueryParser - designed to be overridden
    *
-   * @param fieldName
-   * @param analyzer
    * @return QueryParser
    */
   protected QueryParser createQueryParser(String fieldName, Analyzer analyzer) {
     return new QueryParser(Version.LUCENE_CURRENT, fieldName, analyzer);
-	}
+  }
 
 }

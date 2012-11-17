@@ -16,6 +16,7 @@
  */
 package org.apache.solr.search;
 
+import com.spatial4j.core.distance.DistanceUtils;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.function.BoostedQuery;
@@ -59,9 +60,6 @@ public abstract class ValueSourceParser implements NamedListInitializedPlugin {
 
   /**
    * Parse the user input into a ValueSource.
-   *
-   * @param fp
-   * @throws ParseException
    */
   public abstract ValueSource parse(FunctionQParser fp) throws ParseException;
 
@@ -175,6 +173,23 @@ public abstract class ValueSourceParser implements NamedListInitializedPlugin {
         ValueSource a = fp.parseValueSource();
         ValueSource b = fp.parseValueSource();
         return new DivFloatFunction(a, b);
+      }
+    });
+    addParser("mod", new ValueSourceParser() {
+      @Override
+      public ValueSource parse(FunctionQParser fp) throws ParseException {
+        ValueSource a = fp.parseValueSource();
+        ValueSource b = fp.parseValueSource();
+        return new DualFloatFunction(a, b) {
+          @Override
+          protected String name() {
+            return "mod";
+          }
+          @Override
+          protected float func(int doc, FunctionValues aVals, FunctionValues bVals) {
+            return aVals.floatVal(doc) % bVals.floatVal(doc);
+          }
+        };
       }
     });
     addParser("map", new ValueSourceParser() {
@@ -381,13 +396,13 @@ public abstract class ValueSourceParser implements NamedListInitializedPlugin {
     addParser(new DoubleParser("rad") {
       @Override
       public double func(int doc, FunctionValues vals) {
-        return vals.doubleVal(doc) * HaversineConstFunction.DEGREES_TO_RADIANS;
+        return vals.doubleVal(doc) * DistanceUtils.DEGREES_TO_RADIANS;
       }
     });
     addParser(new DoubleParser("deg") {
       @Override
       public double func(int doc, FunctionValues vals) {
-        return vals.doubleVal(doc) * HaversineConstFunction.RADIANS_TO_DEGREES;
+        return vals.doubleVal(doc) * DistanceUtils.RADIANS_TO_DEGREES;
       }
     });
     addParser(new DoubleParser("sqrt") {

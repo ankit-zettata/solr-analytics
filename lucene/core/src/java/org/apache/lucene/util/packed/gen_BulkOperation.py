@@ -19,6 +19,7 @@ from fractions import gcd
 
 """Code generation for bulk operations"""
 
+MAX_SPECIALIZED_BITS_PER_VALUE = 24;
 PACKED_64_SINGLE_BLOCK_BPV = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 21, 32]
 OUTPUT_FILE = "BulkOperation.java"
 HEADER = """// This file has been automatically generated, DO NOT EDIT
@@ -45,32 +46,11 @@ package org.apache.lucene.util.packed;
 """
 
 FOOTER="""
-
-  private static long[] toLongArray(int[] ints, int offset, int length) {
-    long[] arr = new long[length];
-    for (int i = 0; i < length; ++i) {
-      arr[i] = ints[offset + i];
+  protected int writeLong(long block, byte[] blocks, int blocksOffset) {
+    for (int j = 1; j <= 8; ++j) {
+      blocks[blocksOffset++] = (byte) (block >>> (64 - (j << 3)));
     }
-    return arr;
-  }
-
-  @Override
-  public void encode(int[] values, int valuesOffset, long[] blocks, int blocksOffset, int iterations) {
-    encode(toLongArray(values, valuesOffset, iterations * valueCount()), 0, blocks, blocksOffset, iterations);
-  }
-
-  @Override
-  public void encode(long[] values, int valuesOffset, byte[] blocks, int blocksOffset, int iterations) {
-    final long[] longBLocks = new long[blockCount() * iterations];
-    encode(values, valuesOffset, longBLocks, 0, iterations);
-    ByteBuffer.wrap(blocks, blocksOffset, 8 * iterations * blockCount()).asLongBuffer().put(longBLocks);
-  }
-
-  @Override
-  public void encode(int[] values, int valuesOffset, byte[] blocks, int blocksOffset, int iterations) {
-    final long[] longBLocks = new long[blockCount() * iterations];
-    encode(values, valuesOffset, longBLocks, 0, iterations);
-    ByteBuffer.wrap(blocks, blocksOffset, 8 * iterations * blockCount()).asLongBuffer().put(longBLocks);
+    return blocksOffset;
   }
 
   /**
@@ -106,6 +86,9 @@ FOOTER="""
 }
 """
 
+def is_power_of_two(n):
+  return n & (n - 1) == 0
+
 def casts(typ):
   cast_start = "(%s) (" %typ
   cast_end = ")"
@@ -138,136 +121,25 @@ def get_type(bits):
   else:
     assert False
 
-def packed64singleblock(bpv, f):
-  values = 64 / bpv
-  f.write("    @Override\n")
-  f.write("    public int blockCount() {\n")
-  f.write("      return 1;\n")
-  f.write("     }\n\n")
-  f.write("    @Override\n")
-  f.write("    public int valueCount() {\n")
-  f.write("      return %d;\n" %values)
-  f.write("    }\n\n")
-  p64sb_decode(bpv, f, 32)
-  p64sb_decode(bpv, f, 64)
-  p64sb_encode(bpv, f, 32)
-  p64sb_encode(bpv, f, 64)
-
-def p64sb_decode(bpv, f, bits):
-  values = 64 / bpv
-  typ = get_type(bits)
-  cast_start, cast_end = casts(typ)
-  f.write("    @Override\n")
-  f.write("    public void decode(long[] blocks, int blocksOffset, %s[] values, int valuesOffset, int iterations) {\n" %typ)
-  if bits < bpv:
-    f.write("      throw new UnsupportedOperationException();\n")
-    f.write("    }\n\n")
-    return 
-  f.write("      assert blocksOffset + iterations * blockCount() <= blocks.length;\n")
-  f.write("      assert valuesOffset + iterations * valueCount() <= values.length;\n")
-  f.write("      for (int i = 0; i < iterations; ++i) {\n")
-  f.write("        final long block = blocks[blocksOffset++];\n")
-  mask = (1 << bpv) - 1
-  for i in xrange(values):
-    block_offset = i / values
-    offset_in_block = i % values
-    if i == 0:
-      f.write("        values[valuesOffset++] = %sblock & %dL%s;\n" %(cast_start, mask, cast_end))
-    elif i == values - 1:
-      f.write("        values[valuesOffset++] = %sblock >>> %d%s;\n" %(cast_start, i * bpv, cast_end))
-    else:
-      f.write("        values[valuesOffset++] = %s(block >>> %d) & %dL%s;\n" %(cast_start, i * bpv, mask, cast_end))
-  f.write("      }\n")
-  f.write("    }\n\n")
-
-  f.write("    @Override\n")
-  f.write("    public void decode(byte[] blocks, int blocksOffset, %s[] values, int valuesOffset, int iterations) {\n" %typ)
-  if bits < bpv:
-    f.write("      throw new UnsupportedOperationException();\n")
-    f.write("    }\n\n")
-  f.write("      assert blocksOffset + 8 * iterations * blockCount() <= blocks.length;\n")
-  f.write("      assert valuesOffset + iterations * valueCount() <= values.length;\n")
-  f.write("      for (int i = 0; i < iterations; ++i) {\n")
-  if bpv >= 32 and bits > 32:
-    for i in xrange(7, -1, -1):
-      f.write("        final long byte%d = blocks[blocksOffset++] & 0xFF;\n" %i)
-  else:
-    for i in xrange(7, -1, -1):
-      f.write("        final int byte%d = blocks[blocksOffset++] & 0xFF;\n" %i)
-  for i in xrange(values):
-    byte_start = (i * bpv) / 8
-    bit_start = (i * bpv) % 8
-    byte_end = ((i + 1) * bpv - 1) / 8
-    bit_end = ((i + 1) * bpv - 1) % 8
-    f.write("        values[valuesOffset++] =")
-    if byte_start == byte_end:
-      # only one byte
-      if bit_start == 0:
-        if bit_end == 7:
-          f.write(" byte%d" %byte_start)
-        else:
-          f.write(" byte%d & %d" %(byte_start, mask))
-      else:
-        if bit_end == 7:
-          f.write(" byte%d >>> %d" %(byte_start, bit_start))
-        else:
-          f.write(" (byte%d >>> %d) & %d" %(byte_start, bit_start, mask))
-    else:
-      if bit_start == 0:
-        f.write(" byte%d" %byte_start)
-      else:
-        f.write(" (byte%d >>> %d)" %(byte_start, bit_start))
-      for b in xrange(byte_start + 1, byte_end):
-        f.write(" | (byte%d << %d)" %(b, 8 * (b - byte_start) - bit_start))
-      if bit_end == 7:
-        f.write(" | (byte%d << %d)" %(byte_end, 8 * (byte_end - byte_start) - bit_start))
-      else:
-        f.write(" | ((byte%d & %d) << %d)" %(byte_end, 2 ** (bit_end + 1) - 1, 8 * (byte_end - byte_start) - bit_start))
-    f.write(";\n")
-  f.write("      }\n")
-  f.write("    }\n\n")
-
-def p64sb_encode(bpv, f, bits):
-  values = 64 / bpv
-  typ = get_type(bits)
-  mask_start, mask_end = masks(bits)
-  f.write("    @Override\n")
-  f.write("    public void encode(%s[] values, int valuesOffset, long[] blocks, int blocksOffset, int iterations) {\n" %typ)
-  if bits < bpv:
-    f.write("      throw new UnsupportedOperationException();\n")
-    f.write("    }\n\n")
-    return
-  f.write("      assert blocksOffset + iterations * blockCount() <= blocks.length;\n")
-  f.write("      assert valuesOffset + iterations * valueCount() <= values.length;\n")
-  f.write("      for (int i = 0; i < iterations; ++i) {\n")
-  for i in xrange(values):
-    block_offset = i / values
-    offset_in_block = i % values
-    if i == 0:
-      f.write("        blocks[blocksOffset++] = %svalues[valuesOffset++]%s" %(mask_start, mask_end))
-    else:
-      f.write(" | (%svalues[valuesOffset++]%s << %d)" %(mask_start, mask_end, i * bpv))
-      if i == values - 1:
-        f.write(";\n")
-  f.write("      }\n")
-  f.write("    }\n\n")
-
-def packed64(bpv, f):
+def block_value_count(bpv, bits=64):
   blocks = bpv
-  values = blocks * 64 / bpv
+  values = blocks * bits / bpv
   while blocks % 2 == 0 and values % 2 == 0:
     blocks /= 2
     values /= 2
-  assert values * bpv == 64 * blocks, "%d values, %d blocks, %d bits per value" %(values, blocks, bpv)
+  assert values * bpv == bits * blocks, "%d values, %d blocks, %d bits per value" %(values, blocks, bpv)
+  return (blocks, values)
+
+def packed64(bpv, f):
+  blocks, values = block_value_count(bpv)
   mask = (1 << bpv) - 1
-  f.write("    @Override\n")
-  f.write("    public int blockCount() {\n")
-  f.write("      return %d;\n" %blocks)
-  f.write("    }\n\n")
-  f.write("    @Override\n")
-  f.write("    public int valueCount() {\n")
-  f.write("      return %d;\n" %values)
-  f.write("    }\n\n")
+
+  f.write("\n")
+  f.write("  public BulkOperationPacked%d() {\n" %bpv)
+  f.write("    super(%d);\n" %bpv)
+  f.write("    assert blockCount() == %d;\n" %blocks)
+  f.write("    assert valueCount() == %d;\n" %values)
+  f.write("  }\n\n")
 
   if bpv == 64:
     f.write("""    @Override
@@ -289,135 +161,122 @@ def packed64(bpv, f):
     public void decode(byte[] blocks, int blocksOffset, long[] values, int valuesOffset, int iterations) {
       LongBuffer.wrap(values, valuesOffset, iterations * valueCount()).put(ByteBuffer.wrap(blocks, blocksOffset, 8 * iterations * blockCount()).asLongBuffer());
     }
-
-    @Override
-    public void encode(long[] values, int valuesOffset, long[] blocks, int blocksOffset, int iterations) {
-      System.arraycopy(values, valuesOffset, blocks, blocksOffset, valueCount() * iterations);
-    }
 """)
   else:
-    p64_decode(bpv, f, 32, values)
-    p64_decode(bpv, f, 64, values)
-    p64_encode(bpv, f, 32, values)
-    p64_encode(bpv, f, 64, values)
+    p64_decode(bpv, f, 32)
+    p64_decode(bpv, f, 64)
 
-def p64_decode(bpv, f, bits, values):
+def p64_decode(bpv, f, bits):
+  blocks, values = block_value_count(bpv)
   typ = get_type(bits)
   cast_start, cast_end = casts(typ)
 
-  f.write("    @Override\n")
-  f.write("    public void decode(long[] blocks, int blocksOffset, %s[] values, int valuesOffset, int iterations) {\n" %typ)
+  f.write("  @Override\n")
+  f.write("  public void decode(long[] blocks, int blocksOffset, %s[] values, int valuesOffset, int iterations) {\n" %typ)
   if bits < bpv:
-    f.write("      throw new UnsupportedOperationException();\n")
+    f.write("    throw new UnsupportedOperationException();\n")
   else:
-    f.write("      assert blocksOffset + iterations * blockCount() <= blocks.length;\n")
-    f.write("      assert valuesOffset + iterations * valueCount() <= values.length;\n")
-    f.write("      for (int i = 0; i < iterations; ++i) {\n")
+    f.write("    for (int i = 0; i < iterations; ++i) {\n")
     mask = (1 << bpv) - 1
-    for i in xrange(0, values):
-      block_offset = i * bpv / 64
-      bit_offset = (i * bpv) % 64
-      if bit_offset == 0:
-        # start of block
-        f.write("        final long block%d = blocks[blocksOffset++];\n" %block_offset);
-        f.write("        values[valuesOffset++] = %sblock%d >>> %d%s;\n" %(cast_start, block_offset, 64 - bpv, cast_end))
-      elif bit_offset + bpv == 64:
-        # end of block
-        f.write("        values[valuesOffset++] = %sblock%d & %dL%s;\n" %(cast_start, block_offset, mask, cast_end))
-      elif bit_offset + bpv < 64:
-        # middle of block
-        f.write("        values[valuesOffset++] = %s(block%d >>> %d) & %dL%s;\n" %(cast_start, block_offset, 64 - bit_offset - bpv, mask, cast_end))
-      else:
-        # value spans across 2 blocks
-        mask1 = (1 << (64 - bit_offset)) -1
-        shift1 = bit_offset + bpv - 64
-        shift2 = 64 - shift1
-        f.write("        final long block%d = blocks[blocksOffset++];\n" %(block_offset + 1));
-        f.write("        values[valuesOffset++] = %s((block%d & %dL) << %d) | (block%d >>> %d)%s;\n" %(cast_start, block_offset, mask1, shift1, block_offset + 1, shift2, cast_end))
-    f.write("      }\n")
-  f.write("    }\n\n")
 
-  f.write("    @Override\n")
-  f.write("    public void decode(byte[] blocks, int blocksOffset, %s[] values, int valuesOffset, int iterations) {\n" %typ)
-  if bits < bpv:
-    f.write("      throw new UnsupportedOperationException();\n")
-  else:
-    f.write("      assert blocksOffset + 8 * iterations * blockCount() <= blocks.length;\n")
-    f.write("      assert valuesOffset + iterations * valueCount() <= values.length;\n")
-    f.write("      for (int i = 0; i < iterations; ++i) {\n")
-    blocks = values * bpv / 8
-    for i in xrange(0, values):
-      byte_start = i * bpv / 8
-      bit_start = (i * bpv) % 8
-      byte_end = ((i + 1) * bpv - 1) / 8
-      bit_end = ((i + 1) * bpv - 1) % 8
-      shift = lambda b: 8 * (byte_end - b - 1) + 1 + bit_end
-      if bit_start == 0:
-        f.write("        final %s byte%d = blocks[blocksOffset++] & 0xFF;\n" %(typ, byte_start))
-      for b in xrange(byte_start + 1, byte_end + 1):
-        f.write("        final %s byte%d = blocks[blocksOffset++] & 0xFF;\n" %(typ, b))
-      f.write("        values[valuesOffset++] =")
-      if byte_start == byte_end:
-        if bit_start == 0:
-          if bit_end == 7:
-            f.write(" byte%d" %byte_start)
-          else:
-            f.write(" byte%d >>> %d" %(byte_start, 7 - bit_end))
-        else:
-          if bit_end == 7:
-            f.write(" byte%d & %d" %(byte_start, 2 ** (8 - bit_start) - 1))
-          else:
-            f.write(" (byte%d >>> %d) & %d" %(byte_start, 7 - bit_end, 2 ** (bit_end - bit_start + 1) - 1))
-      else:
-        if bit_start == 0:
-          f.write(" (byte%d << %d)" %(byte_start, shift(byte_start)))
-        else:
-          f.write(" ((byte%d & %d) << %d)" %(byte_start, 2 ** (8 - bit_start) - 1, shift(byte_start)))
-        for b in xrange(byte_start + 1, byte_end):
-          f.write(" | (byte%d << %d)" %(b, shift(b)))
-        if bit_end == 7:
-          f.write(" | byte%d" %byte_end)
-        else:
-          f.write(" | (byte%d >>> %d)" %(byte_end, 7 - bit_end))
-      f.write(";\n")
-    f.write("      }\n")
-  f.write("    }\n\n")
-
-def p64_encode(bpv, f, bits, values):
-  typ = get_type(bits)
-  mask_start, mask_end = masks(bits)
-  f.write("    @Override\n")
-  f.write("    public void encode(%s[] values, int valuesOffset, long[] blocks, int blocksOffset, int iterations) {\n" %typ)
-  f.write("      assert blocksOffset + iterations * blockCount() <= blocks.length;\n")
-  f.write("      assert valuesOffset + iterations * valueCount() <= values.length;\n")
-  f.write("      for (int i = 0; i < iterations; ++i) {\n")
-  for i in xrange(0, values):
-    block_offset = i * bpv / 64
-    bit_offset = (i * bpv) % 64
-    if bit_offset == 0:
-      # start of block
-      f.write("        blocks[blocksOffset++] = (%svalues[valuesOffset++]%s << %d)" %(mask_start, mask_end, 64 - bpv))
-    elif bit_offset + bpv == 64:
-      # end of block
-      f.write(" | %svalues[valuesOffset++]%s;\n" %(mask_start, mask_end))
-    elif bit_offset + bpv < 64:
-      # inside a block
-      f.write(" | (%svalues[valuesOffset++]%s << %d)" %(mask_start, mask_end, 64 - bit_offset - bpv))
+    if is_power_of_two(bpv):
+      f.write("      final long block = blocks[blocksOffset++];\n")
+      f.write("      for (int shift = %d; shift >= 0; shift -= %d) {\n" %(64 - bpv, bpv))
+      f.write("        values[valuesOffset++] = %s(block >>> shift) & %d%s;\n" %(cast_start, mask, cast_end))
+      f.write("      }\n") 
     else:
-      # value spans across 2 blocks
-      right_bits = bit_offset + bpv - 64
-      f.write(" | (%svalues[valuesOffset]%s >>> %d);\n" %(mask_start, mask_end, right_bits))
-      f.write("        blocks[blocksOffset++] = (%svalues[valuesOffset++]%s << %d)" %(mask_start, mask_end, 64 - right_bits))
-  f.write("      }\n")
-  f.write("    }\n\n")
+      for i in xrange(0, values):
+        block_offset = i * bpv / 64
+        bit_offset = (i * bpv) % 64
+        if bit_offset == 0:
+          # start of block
+          f.write("      final long block%d = blocks[blocksOffset++];\n" %block_offset);
+          f.write("      values[valuesOffset++] = %sblock%d >>> %d%s;\n" %(cast_start, block_offset, 64 - bpv, cast_end))
+        elif bit_offset + bpv == 64:
+          # end of block
+          f.write("      values[valuesOffset++] = %sblock%d & %dL%s;\n" %(cast_start, block_offset, mask, cast_end))
+        elif bit_offset + bpv < 64:
+          # middle of block
+          f.write("      values[valuesOffset++] = %s(block%d >>> %d) & %dL%s;\n" %(cast_start, block_offset, 64 - bit_offset - bpv, mask, cast_end))
+        else:
+          # value spans across 2 blocks
+          mask1 = (1 << (64 - bit_offset)) -1
+          shift1 = bit_offset + bpv - 64
+          shift2 = 64 - shift1
+          f.write("      final long block%d = blocks[blocksOffset++];\n" %(block_offset + 1));
+          f.write("      values[valuesOffset++] = %s((block%d & %dL) << %d) | (block%d >>> %d)%s;\n" %(cast_start, block_offset, mask1, shift1, block_offset + 1, shift2, cast_end))
+    f.write("    }\n")
+  f.write("  }\n\n")
 
+  byte_blocks, byte_values = block_value_count(bpv, 8)
+
+  f.write("  @Override\n")
+  f.write("  public void decode(byte[] blocks, int blocksOffset, %s[] values, int valuesOffset, int iterations) {\n" %typ)
+  if bits < bpv:
+    f.write("    throw new UnsupportedOperationException();\n")
+  else:
+
+    if is_power_of_two(bpv) and bpv < 8:
+      f.write("    for (int j = 0; j < 8 * iterations; ++j) {\n")
+      f.write("      final byte block = blocks[blocksOffset++];\n")
+      for shift in xrange(8 - bpv, 0, -bpv):
+        f.write("      values[valuesOffset++] = (block >>> %d) & %d;\n" %(shift, mask))
+      f.write("      values[valuesOffset++] = block & %d;\n" %mask)
+      f.write("    }\n")
+    elif bpv == 8:
+      f.write("    for (int j = 0; j < 8 * iterations; ++j) {\n")
+      f.write("      values[valuesOffset++] = blocks[blocksOffset++] & 0xFF;\n")
+      f.write("    }\n")
+    elif is_power_of_two(bpv) and bpv > 8:
+      f.write("    for (int j = 0; j < %d * iterations; ++j) {\n" %(64 / bpv))
+      m = bits <= 32 and "0xFF" or "0xFFL"
+      f.write("      values[valuesOffset++] =")
+      for i in xrange(bpv / 8 - 1):
+        f.write(" ((blocks[blocksOffset++] & %s) << %d) |" %(m, bpv - 8))
+      f.write(" (blocks[blocksOffset++] & %s);\n" %m)
+      f.write("    }\n")
+    else:
+      f.write("    for (int i = 0; i < 8 * iterations; ++i) {\n")
+      for i in xrange(0, byte_values):
+        byte_start = i * bpv / 8
+        bit_start = (i * bpv) % 8
+        byte_end = ((i + 1) * bpv - 1) / 8
+        bit_end = ((i + 1) * bpv - 1) % 8
+        shift = lambda b: 8 * (byte_end - b - 1) + 1 + bit_end
+        if bit_start == 0:
+          f.write("      final %s byte%d = blocks[blocksOffset++] & 0xFF;\n" %(typ, byte_start))
+        for b in xrange(byte_start + 1, byte_end + 1):
+          f.write("      final %s byte%d = blocks[blocksOffset++] & 0xFF;\n" %(typ, b))
+        f.write("      values[valuesOffset++] =")
+        if byte_start == byte_end:
+          if bit_start == 0:
+            if bit_end == 7:
+              f.write(" byte%d" %byte_start)
+            else:
+              f.write(" byte%d >>> %d" %(byte_start, 7 - bit_end))
+          else:
+            if bit_end == 7:
+              f.write(" byte%d & %d" %(byte_start, 2 ** (8 - bit_start) - 1))
+            else:
+              f.write(" (byte%d >>> %d) & %d" %(byte_start, 7 - bit_end, 2 ** (bit_end - bit_start + 1) - 1))
+        else:
+          if bit_start == 0:
+            f.write(" (byte%d << %d)" %(byte_start, shift(byte_start)))
+          else:
+            f.write(" ((byte%d & %d) << %d)" %(byte_start, 2 ** (8 - bit_start) - 1, shift(byte_start)))
+          for b in xrange(byte_start + 1, byte_end):
+            f.write(" | (byte%d << %d)" %(b, shift(b)))
+          if bit_end == 7:
+            f.write(" | byte%d" %byte_end)
+          else:
+            f.write(" | (byte%d >>> %d)" %(byte_end, 7 - bit_end))
+        f.write(";\n")
+      f.write("    }\n")
+  f.write("  }\n\n")
 
 if __name__ == '__main__':
-  p64_bpv = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 16, 21, 32]
-
   f = open(OUTPUT_FILE, 'w')
   f.write(HEADER)
-  f.write('import java.nio.ByteBuffer;\n')
   f.write('\n')
   f.write('''/**
  * Efficient sequential read/write of packed integers.
@@ -427,6 +286,9 @@ if __name__ == '__main__':
   f.write('  private static final BulkOperation[] packedBulkOps = new BulkOperation[] {\n')
     
   for bpv in xrange(1, 65):
+    if bpv > MAX_SPECIALIZED_BITS_PER_VALUE:
+      f.write('    new BulkOperationPacked(%d),\n' % bpv)
+      continue
     f2 = open('BulkOperationPacked%d.java' % bpv, 'w')
     f2.write(HEADER)
     if bpv == 64:
@@ -436,7 +298,7 @@ if __name__ == '__main__':
     f2.write('''/**
  * Efficient sequential read/write of packed integers.
  */\n''')
-    f2.write('final class BulkOperationPacked%d extends BulkOperation {\n' % bpv)
+    f2.write('final class BulkOperationPacked%d extends BulkOperationPacked {\n' % bpv)
     packed64(bpv, f2)
     f2.write('}\n')
     f2.close()
@@ -449,16 +311,7 @@ if __name__ == '__main__':
   f.write('  private static final BulkOperation[] packedSingleBlockBulkOps = new BulkOperation[] {\n')
   for bpv in xrange(1, max(PACKED_64_SINGLE_BLOCK_BPV)+1):
     if bpv in PACKED_64_SINGLE_BLOCK_BPV:
-      f2 = open('BulkOperationPackedSingleBlock%d.java' % bpv, 'w')
-      f2.write(HEADER)
-      f2.write('''/**
- * Efficient sequential read/write of packed integers.
- */\n''')
-      f2.write('final class BulkOperationPackedSingleBlock%d extends BulkOperation {\n' % bpv)
-      packed64singleblock(bpv,f2)
-      f2.write('}\n')
-      f2.close()
-      f.write('    new BulkOperationPackedSingleBlock%d(),\n' % bpv)
+      f.write('    new BulkOperationPackedSingleBlock(%d),\n' % bpv)
     else:
       f.write('    null,\n')
   f.write('  };\n')

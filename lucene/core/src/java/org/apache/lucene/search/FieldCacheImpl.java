@@ -52,7 +52,7 @@ import org.apache.lucene.util.packed.PackedInts;
  * @since   lucene 1.4
  */
 class FieldCacheImpl implements FieldCache {
-	
+
   private Map<Class<?>,Cache> caches;
   FieldCacheImpl() {
     init();
@@ -173,7 +173,7 @@ class FieldCacheImpl implements FieldCache {
         ((AtomicReader)key).addReaderClosedListener(purgeReader); 
       } else {
         // last chance
-        reader.addReaderClosedListener(purgeReader); 				
+        reader.addReaderClosedListener(purgeReader);
       }
     }
   }
@@ -286,7 +286,7 @@ class FieldCacheImpl implements FieldCache {
 
   /** Expert: Every composite-key in the internal cache is of this type. */
   static class Entry {
-    final String field;        // which Fieldable
+    final String field;        // which Field
     final Object custom;       // which custom comparator or parser
 
     /** Creates one of these objects for a custom comparator/parser. */

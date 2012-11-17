@@ -23,7 +23,7 @@
      kitchen sink thrown in. See example/solr/conf/schema.xml for a 
      more concise example.
 
-     $Id: schema12.xml 1333704 2012-05-04 00:43:32Z hossman $
+     $Id: schema12.xml 1381691 2012-09-06 17:40:18Z hossman $
      $Source: /cvs/main/searching/solr-configs/test/WEB-INF/classes/schema.xml,v $
      $Name:  $
   -->
@@ -591,6 +591,10 @@
 
    <dynamicField name="random_*" type="random" />
 
+   <!-- unused, for testing luke copyFields -->
+   <dynamicField name="foo_copysource_*" type="ignored" multiValued="true"/>
+   <dynamicField name="bar_copydest_*" type="ignored" multiValued="true"/>
+
  </fields>
 
  <defaultSearchField>text</defaultSearchField>
@@ -601,5 +605,7 @@
 
    <copyField source="title" dest="text"/>
    <copyField source="subject" dest="text"/>
+
+   <copyField source="foo_copysource_*" dest="bar_copydest_*" />
  
 </schema>

@@ -17,7 +17,6 @@
 
 package org.apache.solr.handler.loader;
 
-import org.apache.commons.io.IOUtils;
 import org.apache.solr.client.solrj.request.JavaBinUpdateRequestCodec;
 import org.apache.solr.client.solrj.request.UpdateRequest;
 import org.apache.solr.common.SolrException;
@@ -55,8 +54,9 @@ public class JavabinLoader extends ContentStreamLoader {
       is = stream.getStream();
       parseAndLoadDocs(req, rsp, is, processor);
     } finally {
-      IOUtils.closeQuietly(is);
-      stream.close();
+      if(is != null) {
+        is.close();
+      }
     }
   }
   

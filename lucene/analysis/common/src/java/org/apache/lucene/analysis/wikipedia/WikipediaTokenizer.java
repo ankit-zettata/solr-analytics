@@ -140,7 +140,6 @@ public final class WikipediaTokenizer extends Tokenizer {
    *
    * @param input The input
    * @param tokenOutput One of {@link #TOKENS_ONLY}, {@link #UNTOKENIZED_ONLY}, {@link #BOTH}
-   * @param untokenizedTypes
    */
   public WikipediaTokenizer(Reader input, int tokenOutput, Set<String> untokenizedTypes) {
     super(input);
@@ -154,7 +153,6 @@ public final class WikipediaTokenizer extends Tokenizer {
    *
    * @param input The input
    * @param tokenOutput One of {@link #TOKENS_ONLY}, {@link #UNTOKENIZED_ONLY}, {@link #BOTH}
-   * @param untokenizedTypes
    */
   public WikipediaTokenizer(AttributeFactory factory, Reader input, int tokenOutput, Set<String> untokenizedTypes) {
     super(factory, input);
@@ -168,7 +166,6 @@ public final class WikipediaTokenizer extends Tokenizer {
    *
    * @param input The input
    * @param tokenOutput One of {@link #TOKENS_ONLY}, {@link #UNTOKENIZED_ONLY}, {@link #BOTH}
-   * @param untokenizedTypes
    */
   public WikipediaTokenizer(AttributeSource source, Reader input, int tokenOutput, Set<String> untokenizedTypes) {
     super(source, input);
@@ -318,16 +315,10 @@ public final class WikipediaTokenizer extends Tokenizer {
   */
   @Override
   public void reset() throws IOException {
-    super.reset();
+    scanner.yyreset(input);
     tokens = null;
     scanner.reset();
     first = true;
-  }
-
-  @Override
-  public void setReader(Reader reader) throws IOException {
-    super.setReader(reader);
-    scanner.yyreset(input);
   }
 
   @Override

@@ -8,6 +8,14 @@ http://svn.apache.org/repos/asf/lucene/dev/tags/lucene_solr_3_6_0/lucene/contrib
 
 ======================= Lucene 4.0.0 =======================
 
+Changes in backwards compatibility policy
+
+* LUCENE-4392: Class org.apache.lucene.util.SortedVIntList has been removed.
+  (Adrien Grand)
+
+* LUCENE-4393: RollingCharBuffer has been moved to the o.a.l.analysis.util
+  package of lucene-analysis-common. (Adrien Grand)
+
 New Features
 
 * LUCENE-1888: Added the option to store payloads in the term
@@ -23,8 +31,22 @@ New Features
 * LUCENE-4323: Added support for an absolute maximum CFS segment size
   (in MiB) to LogMergePolicy and TieredMergePolicy.
   (Alexey Lef via Uwe Schindler)
+  
+* LUCENE-4339: Allow deletes against 3.x segments for easier upgrading.
+  Lucene3x Codec is still otherwise read-only, you should not set it
+  as the default Codec on IndexWriter, because it cannot write new segments.
+  (Mike McCandless, Robert Muir)
+
+* SOLR-3441: ElisionFilterFactory is now MultiTermAware
+  (Jack Krupansky via hossman)
 
 API Changes
+
+* LUCENE-4391, LUCENE-4440: All methods of Lucene40Codec but
+  getPostingsFormatForField are now final. To reuse functionality 
+  of Lucene40, you should extend FilterCodec and delegate to Lucene40
+  instead of extending Lucene40Codec.  (Adrien Grand, Shai Erea,
+  Robert Muir, Uwe Schindler)
 
 * LUCENE-4299: Added Terms.hasPositions() and Terms.hasOffsets().
   Previously you had no real way to know that a term vector field
@@ -77,7 +99,28 @@ API Changes
   fields in a stored document, has been replaced with the simpler
   StoredFieldVisitor API.  (Mike McCandless)
 
+* LUCENE-4343: Made Tokenizer.setReader final. This is a setter that should
+  not be overriden by subclasses: per-stream initialization should happen
+  in reset().  (Robert Muir)
+
+* LUCENE-4377: Remove IndexInput.copyBytes(IndexOutput, long). 
+  Use DataOutput.copyBytes(DataInput, long) instead.
+  (Mike McCandless, Robert Muir)
+
+* LUCENE-4355: Simplify AtomicReader's sugar methods such as termDocsEnum,
+  termPositionsEnum, docFreq, and totalTermFreq to only take Term as a
+  parameter. If you want to do expert things such as pass a different
+  Bits as liveDocs, then use the flex apis (fields(), terms(), etc) directly.
+  (Mike McCandless, Robert Muir)
+
+* LUCENE-4425: clarify documentation of StoredFieldVisitor.binaryValue
+  and simplify the api to binaryField(FieldInfo, byte[]).
+  (Adrien Grand, Robert Muir)
+
 Bug Fixes
+
+* LUCENE-4423: DocumentStoredFieldVisitor.binaryField ignored offset and
+  length. (Adrien Grand)
 
 * LUCENE-4297: BooleanScorer2 would multiply the coord() factor
   twice for conjunctions: for most users this is no problem, but
@@ -116,7 +159,42 @@ Bug Fixes
 * LUCENE-4333: Fixed NPE in TermGroupFacetCollector when faceting on mv fields.
   (Jesse MacVicar, Martijn van Groningen)
 
+* LUCENE-4218: Document.get(String) and Field.stringValue() again return
+  values for numeric fields, like Lucene 3.x and consistent with the documentation.
+  (Jamie, Uwe Schindler, Robert Muir)
+
+* NRTCachingDirectory was always caching a newly flushed segment in
+  RAM, instead of checking the estimated size of the segment
+  to decide whether to cache it. (Mike McCandless)
+
+* LUCENE-3720: fix memory-consumption issues with BeiderMorseFilter.
+  (Thomas Neidhart via Robert Muir)
+
+* LUCENE-4401: Fix bug where DisjunctionSumScorer would sometimes call score()
+  on a subscorer that had already returned NO_MORE_DOCS.  (Liu Chao, Robert Muir)
+
+* LUCENE-4411: when sampling is enabled for a FacetRequest, its depth
+  parameter is reset to the default (1), even if set otherwise.
+  (Gilad Barkai via Shai Erera)
+
+* LUCENE-4455: Fix bug in SegmentInfoPerCommit.sizeInBytes() that was
+  returning 2X the true size, inefficiently.  Also fixed bug in
+  CheckIndex that would report no deletions when a segment has
+  deletions, and vice/versa.  (Uwe Schindler, Robert Muir, Mike McCandless)
+
+* LUCENE-4456: Fixed double-counting sizeInBytes for a segment
+  (affects how merge policies pick merges); fixed CheckIndex's
+  incorrect reporting of whether a segment has deletions; fixed case
+  where on abort Lucene could remove files it didn't create; fixed
+  many cases where IndexWriter could leave leftover files (on
+  exception in various places, on reuse of a segment name after crash
+  and recovery.  (Uwe Schindler, Robert Muir, Mike McCandless)
+
 Optimizations
+
+* LUCENE-4322: Decrease lucene-core JAR size. The core JAR size had increased a
+  lot because of generated code introduced in LUCENE-4161 and LUCENE-3892.
+  (Adrien Grand)
 
 * LUCENE-4317: Improve reuse of internal TokenStreams and StringReader
   in oal.document.Field.  (Uwe Schindler, Chris Male, Robert Muir)
@@ -124,10 +202,29 @@ Optimizations
 * LUCENE-4327: Support out-of-order scoring in FilteredQuery for higher
   performance.  (Mike McCandless, Robert Muir)
 
+* LUCENE-4364: Optimize MMapDirectory to not make a mapping per-cfs-slice,
+  instead one map per .cfs file. This reduces the total number of maps.
+  Additionally factor out a (package-private) generic 
+  ByteBufferIndexInput from MMapDirectory.  (Uwe Schindler, Robert Muir)
+
 Build
+
+* LUCENE-4406, LUCENE-4407: Upgrade to randomizedtesting 2.0.1.
+  Workaround for broken test output XMLs due to non-XML text unicode
+  chars in strings. Added printing of failed tests at the end of a
+  test run (Dawid Weiss)
+
+* LUCENE-4252: Detect/Fail tests when they leak RAM in static fields
+  (Robert Muir, Dawid Weiss)
+
+* LUCENE-4360: Support running the same test suite multiple times in 
+  parallel (Dawid Weiss)
 
 * LUCENE-3985: Upgrade to randomizedtesting 2.0.0. Added support for 
   thread leak detection. Added support for suite timeouts. (Dawid Weiss)
+
+* LUCENE-4340: Move all non-default codec, postings format and terms
+  dictionary implementations to lucene/codecs. (Adrien Grand)
 
 Documentation
 
@@ -1263,6 +1360,13 @@ New features
 
 * LUCENE-4108: add replaceTaxonomy to DirectoryTaxonomyWriter, which replaces
   the taxonomy in place with the given one. (Shai Erera)
+
+* LUCENE-3030: new BlockTree terms dictionary (used by the default
+  Lucene40 postings format) uses less RAM (for the terms index) and
+  disk space (for all terms and metadata) and gives sizable
+  performance gains for terms dictionary intensive operations like
+  FuzzyQuery, direct spell checker and primary-key lookup (Mike
+  McCandless).
 
 Optimizations
 
@@ -7549,7 +7653,7 @@ Infrastructure
 11. Fixed bugs in GermanAnalyzer (gschwarz)
 
 
-1.2 RC2:
+1.2 RC2
  - added sources to distribution
  - removed broken build scripts and libraries from distribution
  - SegmentsReader: fixed potential race condition
@@ -7564,7 +7668,8 @@ Infrastructure
  - JDK 1.1 compatibility fix: disabled lock files for JDK 1.1,
    since they rely on a feature added in JDK 1.2.
 
-1.2 RC1 (first Apache release):
+1.2 RC1
+  - first Apache release
   - packages renamed from com.lucene to org.apache.lucene
   - license switched from LGPL to Apache
   - ant-only build -- no more makefiles
@@ -7575,7 +7680,8 @@ Infrastructure
   - Analyzers can choose tokenizer based on field name
   - misc bug fixes.
 
-1.01b (last Sourceforge release)
+1.01b
+ . last Sourceforge release
  . a few bug fixes
  . new Query Parser
  . new prefix query (search for "foo*" matches "food")

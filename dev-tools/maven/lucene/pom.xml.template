@@ -41,6 +41,7 @@
   </scm>
   <modules>
     <module>core</module>
+    <module>codecs</module>
     <module>test-framework</module>
     <module>analysis</module>
     <module>benchmark</module>

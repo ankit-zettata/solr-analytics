@@ -142,7 +142,7 @@ public abstract class AbstractLuceneSpellChecker extends SolrSpellChecker {
   
   @Override
   public SpellingResult getSuggestions(SpellingOptions options) throws IOException {
-  	SpellingResult result = new SpellingResult(options.tokens);
+    SpellingResult result = new SpellingResult(options.tokens);
     IndexReader reader = determineReader(options.reader);
     Term term = field != null ? new Term(field, "") : null;
     float theAccuracy = (options.accuracy == Float.MIN_VALUE) ? spellChecker.getAccuracy() : options.accuracy;
@@ -187,13 +187,13 @@ public abstract class AbstractLuceneSpellChecker extends SolrSpellChecker {
         int countLimit = Math.min(options.count, suggestions.length);
         if(countLimit>0)
         {
-	        for (int i = 0; i < countLimit; i++) {
-	          term = new Term(field, suggestions[i]);
-	          result.add(token, suggestions[i], reader.docFreq(term));
-	        }
+          for (int i = 0; i < countLimit; i++) {
+            term = new Term(field, suggestions[i]);
+            result.add(token, suggestions[i], reader.docFreq(term));
+          }
         } else {
-        	List<String> suggList = Collections.emptyList();
-        	result.add(token, suggList);
+          List<String> suggList = Collections.emptyList();
+          result.add(token, suggList);
         }
       } else {
         if (suggestions.length > 0) {
@@ -203,8 +203,8 @@ public abstract class AbstractLuceneSpellChecker extends SolrSpellChecker {
           }
           result.add(token, suggList);
         } else {
-        	List<String> suggList = Collections.emptyList();
-        	result.add(token, suggList);
+          List<String> suggList = Collections.emptyList();
+          result.add(token, suggList);
         }
       }
     }
@@ -224,7 +224,7 @@ public abstract class AbstractLuceneSpellChecker extends SolrSpellChecker {
   /**
    * Initialize the {@link #index} variable based on the {@link #indexDir}.  Does not actually create the spelling index.
    *
-   * @throws IOException
+   * @throws IOException If there is a low-level I/O error.
    */
   protected void initIndex() throws IOException {
     if (indexDir != null) {

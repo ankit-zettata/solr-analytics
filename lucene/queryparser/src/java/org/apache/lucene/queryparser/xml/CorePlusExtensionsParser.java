@@ -32,7 +32,6 @@ public class CorePlusExtensionsParser extends CoreParser {
    * Construct an XML parser that uses a single instance QueryParser for handling
    * UserQuery tags - all parse operations are synchronized on this parser
    *
-   * @param analyzer
    * @param parser A QueryParser which will be synchronized on during parse calls.
    */
   public CorePlusExtensionsParser(Analyzer analyzer, QueryParser parser) {
@@ -43,7 +42,6 @@ public class CorePlusExtensionsParser extends CoreParser {
    * Constructs an XML parser that creates a QueryParser for each UserQuery request.
    *
    * @param defaultField The default field name used by QueryParsers constructed for UserQuery tags
-   * @param analyzer
    */
   public CorePlusExtensionsParser(String defaultField, Analyzer analyzer) {
     this(defaultField, analyzer, null);
@@ -58,6 +56,6 @@ public class CorePlusExtensionsParser extends CoreParser {
     queryFactory.addBuilder("LikeThisQuery", new LikeThisQueryBuilder(analyzer, fields));
     queryFactory.addBuilder("BoostingQuery", new BoostingQueryBuilder(queryFactory));
     queryFactory.addBuilder("FuzzyLikeThisQuery", new FuzzyLikeThisQueryBuilder(analyzer));
-		
-	}
+
+  }
 }

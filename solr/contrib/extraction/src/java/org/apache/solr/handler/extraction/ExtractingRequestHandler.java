@@ -124,7 +124,7 @@ public class ExtractingRequestHandler extends ContentStreamHandlerBase implement
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/contrib/extraction/src/java/org/apache/solr/handler/extraction/ExtractingRequestHandler.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/contrib/extraction/src/java/org/apache/solr/handler/extraction/ExtractingRequestHandler.java $";
   }
 }
 

@@ -256,6 +256,6 @@ public class ClusteringComponent extends SearchComponent implements SolrCoreAwar
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/contrib/clustering/src/java/org/apache/solr/handler/clustering/ClusteringComponent.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/contrib/clustering/src/java/org/apache/solr/handler/clustering/ClusteringComponent.java $";
   }
 }

@@ -152,8 +152,6 @@ public class TestCustomSearcherSort extends LuceneTestCase {
   
   /**
    * Check the hits for duplicates.
-   * 
-   * @param hits
    */
   private void checkHits(ScoreDoc[] hits, String prefix) {
     if (hits != null) {
@@ -186,21 +184,11 @@ public class TestCustomSearcherSort extends LuceneTestCase {
   public class CustomSearcher extends IndexSearcher {
     private int switcher;
     
-    /**
-     * @param r
-     */
     public CustomSearcher(IndexReader r, int switcher) {
       super(r);
       this.switcher = switcher;
     }
     
-    /*
-     * (non-Javadoc)
-     * 
-     * @see
-     * org.apache.lucene.search.Searchable#search(org.apache.lucene.search.Query
-     * , org.apache.lucene.search.Filter, int, org.apache.lucene.search.Sort)
-     */
     @Override
     public TopFieldDocs search(Query query, Filter filter, int nDocs, Sort sort)
         throws IOException {
@@ -211,13 +199,6 @@ public class TestCustomSearcherSort extends LuceneTestCase {
       return super.search(bq, filter, nDocs, sort);
     }
     
-    /*
-     * (non-Javadoc)
-     * 
-     * @see
-     * org.apache.lucene.search.Searchable#search(org.apache.lucene.search.Query
-     * , org.apache.lucene.search.Filter, int)
-     */
     @Override
     public TopDocs search(Query query, Filter filter, int nDocs)
         throws IOException {

@@ -11,12 +11,14 @@ import java.util.Set;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -380,13 +382,19 @@ public class TermVectorComponent extends SearchComponent implements SolrCoreAwar
           }
         }
       }
-
-      if (fieldOptions.docFreq) {
-        termInfo.add("df", getDocFreq(reader, field, text));
+      
+      int df = 0;
+      if (fieldOptions.docFreq || fieldOptions.tfIdf) {
+        df = reader.docFreq(new Term(field, text));
       }
 
+      if (fieldOptions.docFreq) {
+        termInfo.add("df", df);
+      }
+
+      // TODO: this is not TF/IDF by anyone's definition!
       if (fieldOptions.tfIdf) {
-        double tfIdfVal = ((double) freq) / getDocFreq(reader, field, text);
+        double tfIdfVal = ((double) freq) / df;
         termInfo.add("tf-idf", tfIdfVal);
       }
     }
@@ -403,16 +411,6 @@ public class TermVectorComponent extends SearchComponent implements SolrCoreAwar
           throw new SolrException(SolrException.ErrorCode.BAD_REQUEST, e.getMessage(), e);
         }
       }
-    }
-    return result;
-  }
-
-  private static int getDocFreq(IndexReader reader, String field, BytesRef term) {
-    int result = 1;
-    try {
-      result = reader.docFreq(field, term);
-    } catch (IOException e) {
-      throw new RuntimeException(e);
     }
     return result;
   }
@@ -470,7 +468,7 @@ public class TermVectorComponent extends SearchComponent implements SolrCoreAwar
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/handler/component/TermVectorComponent.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/handler/component/TermVectorComponent.java $";
   }
 
   @Override

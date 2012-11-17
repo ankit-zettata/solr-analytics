@@ -644,8 +644,6 @@ public class TestIndexWriter extends LuceneTestCase {
    * Test that no NullPointerException will be raised,
    * when adding one document with a single, empty field
    * and term vectors enabled.
-   * @throws IOException
-   *
    */
   public void testBadSegment() throws IOException {
     Directory dir = newDirectory();
@@ -1027,7 +1025,6 @@ public class TestIndexWriter extends LuceneTestCase {
             }
             w.close();
             w = null;
-            _TestUtil.checkIndex(dir);
             DirectoryReader.open(dir).close();
 
             // Strangely, if we interrupt a thread before
@@ -1042,7 +1039,7 @@ public class TestIndexWriter extends LuceneTestCase {
             allowInterrupt = true;
           }
         } catch (ThreadInterruptedException re) {
-          if (VERBOSE) {
+          if (true || VERBOSE) {
             System.out.println("TEST: got interrupt");
             re.printStackTrace(System.out);
           }
@@ -1545,7 +1542,7 @@ public class TestIndexWriter extends LuceneTestCase {
     }
 
     @Override
-    public void setReader(Reader input) throws IOException {
+    public void reset() throws IOException {
        this.upto = 0;
        final StringBuilder b = new StringBuilder();
        final char[] buffer = new char[1024];
@@ -1888,5 +1885,51 @@ public class TestIndexWriter extends LuceneTestCase {
     } finally {
       dir.close();
     }
+  }
+
+  // LUCENE-4398
+  public void testRotatingFieldNames() throws Exception {
+    Directory dir = newFSDirectory(_TestUtil.getTempDir("TestIndexWriter.testChangingFields"));
+    IndexWriterConfig iwc = new IndexWriterConfig(TEST_VERSION_CURRENT, new MockAnalyzer(random()));
+    iwc.setRAMBufferSizeMB(0.2);
+    iwc.setMaxBufferedDocs(-1);
+    IndexWriter w = new IndexWriter(dir, iwc);
+    int upto = 0;
+
+    FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
+    ft.setOmitNorms(true);
+
+    int firstDocCount = -1;
+    for(int iter=0;iter<10;iter++) {
+      final int startFlushCount = w.getFlushCount();
+      int docCount = 0;
+      while(w.getFlushCount() == startFlushCount) {
+        Document doc = new Document();
+        for(int i=0;i<10;i++) {
+          doc.add(new Field("field" + (upto++), "content", ft));
+        }
+        w.addDocument(doc);
+        docCount++;
+      }
+
+      if (VERBOSE) {
+        System.out.println("TEST: iter=" + iter + " flushed after docCount=" + docCount);
+      }
+
+      if (iter == 0) {
+        firstDocCount = docCount;
+      }
+
+      assertTrue("flushed after too few docs: first segment flushed at docCount=" + firstDocCount + ", but current segment flushed after docCount=" + docCount + "; iter=" + iter, ((float) docCount) / firstDocCount > 0.9);
+
+      if (upto > 5000) {
+        // Start re-using field names after a while
+        // ... important because otherwise we can OOME due
+        // to too many FieldInfo instances.
+        upto = 0;
+      }
+    }
+    w.close();
+    dir.close();
   }
 }

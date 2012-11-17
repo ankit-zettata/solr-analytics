@@ -269,15 +269,21 @@ import org.apache.lucene.util.fst.FST; // javadocs
 // TODO: this class could be created by wrapping
 // BlockTreeTermsDict around Lucene40PostingsBaseFormat; ie
 // we should not duplicate the code from that class here:
-public class Lucene40PostingsFormat extends PostingsFormat {
+public final class Lucene40PostingsFormat extends PostingsFormat {
 
   private final int minBlockSize;
   private final int maxBlockSize;
 
+  /** Creates {@code Lucene40PostingsFormat} with default
+   *  settings. */
   public Lucene40PostingsFormat() {
     this(BlockTreeTermsWriter.DEFAULT_MIN_BLOCK_SIZE, BlockTreeTermsWriter.DEFAULT_MAX_BLOCK_SIZE);
   }
 
+  /** Creates {@code Lucene40PostingsFormat} with custom
+   *  values for {@code minBlockSize} and {@code
+   *  maxBlockSize} passed to block terms dictionary.
+   *  @see BlockTreeTermsWriter#BlockTreeTermsWriter(SegmentWriteState,PostingsWriterBase,int,int) */
   public Lucene40PostingsFormat(int minBlockSize, int maxBlockSize) {
     super("Lucene40");
     this.minBlockSize = minBlockSize;
@@ -314,7 +320,7 @@ public class Lucene40PostingsFormat extends PostingsFormat {
       FieldsProducer ret = new BlockTreeTermsReader(
                                                     state.dir,
                                                     state.fieldInfos,
-                                                    state.segmentInfo.name,
+                                                    state.segmentInfo,
                                                     postings,
                                                     state.context,
                                                     state.segmentSuffix,

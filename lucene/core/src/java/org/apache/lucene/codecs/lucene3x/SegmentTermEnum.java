@@ -17,6 +17,7 @@ package org.apache.lucene.codecs.lucene3x;
  * limitations under the License.
  */
 
+import java.io.Closeable;
 import java.io.IOException;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.index.FieldInfos;
@@ -31,7 +32,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
  * @lucene.experimental */
 
 @Deprecated
-final class SegmentTermEnum implements Cloneable {
+final class SegmentTermEnum implements Cloneable,Closeable {
   private IndexInput input;
   FieldInfos fieldInfos;
   long size;
@@ -141,15 +142,15 @@ final class SegmentTermEnum implements Cloneable {
     termBuffer.read(input, fieldInfos);
     newSuffixStart = termBuffer.newSuffixStart;
 
-    termInfo.docFreq = input.readVInt();	  // read doc freq
-    termInfo.freqPointer += input.readVLong();	  // read freq pointer
-    termInfo.proxPointer += input.readVLong();	  // read prox pointer
+    termInfo.docFreq = input.readVInt();    // read doc freq
+    termInfo.freqPointer += input.readVLong();    // read freq pointer
+    termInfo.proxPointer += input.readVLong();    // read prox pointer
     
     if (termInfo.docFreq >= skipInterval) 
       termInfo.skipOffset = input.readVInt();
 
     if (isIndex)
-      indexPointer += input.readVLong();	  // read index pointer
+      indexPointer += input.readVLong();    // read index pointer
 
     //System.out.println("  ste ret term=" + term());
     return true;

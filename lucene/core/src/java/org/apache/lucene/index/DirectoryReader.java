@@ -49,6 +49,8 @@ import org.apache.lucene.store.Directory;
  (non-Lucene) objects instead.
 */
 public abstract class DirectoryReader extends BaseCompositeReader<AtomicReader> {
+
+  /** Default termInfosIndexDivisor. */
   public static final int DEFAULT_TERMS_INDEX_DIVISOR = 1;
 
   /** The index directory. */
@@ -97,7 +99,7 @@ public abstract class DirectoryReader extends BaseCompositeReader<AtomicReader> 
    * can tolerate deleted documents being returned you might
    * gain some performance by passing false.
    * @return The new IndexReader
-   * @throws CorruptIndexException
+   * @throws CorruptIndexException if the index is corrupt
    * @throws IOException if there is a low-level IO error
    *
    * @see #openIfChanged(DirectoryReader,IndexWriter,boolean)
@@ -239,7 +241,7 @@ public abstract class DirectoryReader extends BaseCompositeReader<AtomicReader> 
    * can tolerate deleted documents being returned you might
    * gain some performance by passing false.
    *
-   * @throws IOException
+   * @throws IOException if there is a low-level IO error
    *
    * @lucene.experimental
    */

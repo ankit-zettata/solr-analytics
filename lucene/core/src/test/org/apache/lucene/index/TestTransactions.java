@@ -129,7 +129,7 @@ public class TestTransactions extends LuceneTestCase {
           }
           try {
             writer2.prepareCommit();
-          } catch (Throwable t) { 	
+          } catch (Throwable t) {
             writer1.rollback();
             writer2.rollback();
             return;
@@ -214,6 +214,11 @@ public class TestTransactions extends LuceneTestCase {
     dir2.failOn(new RandomFailure());
     dir1.setFailOnOpenInput(false);
     dir2.setFailOnOpenInput(false);
+
+    // We throw exceptions in deleteFile, which creates
+    // leftover files:
+    dir1.setAssertNoUnrefencedFilesOnClose(false);
+    dir2.setAssertNoUnrefencedFilesOnClose(false);
 
     initIndex(dir1);
     initIndex(dir2);

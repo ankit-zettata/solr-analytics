@@ -58,7 +58,7 @@ import org.apache.lucene.util.Version;
  *
  * <p>Example Usage:
  * 
- * <pre>
+ * <pre class="prettyprint">
  *  SpellChecker spellchecker = new SpellChecker(spellIndexDirectory);
  *  // To index a field of a user index:
  *  spellchecker.indexDictionary(new LuceneDictionary(my_lucene_reader, a_field));
@@ -187,6 +187,10 @@ public class SpellChecker implements java.io.Closeable {
     this.comparator = comparator;
   }
 
+  /**
+   * Gets the comparator in use for ranking suggestions.
+   * @see #setComparator(Comparator)
+   */
   public Comparator<SuggestWord> getComparator() {
     return comparator;
   }
@@ -283,7 +287,7 @@ public class SpellChecker implements java.io.Closeable {
    */
   public String[] suggestSimilar(String word, int numSug, IndexReader ir,
       String field, SuggestMode suggestMode) throws IOException {
-  	return suggestSimilar(word, numSug, ir, field, suggestMode, this.accuracy);
+    return suggestSimilar(word, numSug, ir, field, suggestMode, this.accuracy);
   }
   
   /**
@@ -445,7 +449,7 @@ public class SpellChecker implements java.io.Closeable {
 
   /**
    * Removes all terms from the spell check index.
-   * @throws IOException
+   * @throws IOException If there is a low-level I/O error.
    * @throws AlreadyClosedException if the Spellchecker is already closed
    */
   public void clearIndex() throws IOException {
@@ -463,8 +467,8 @@ public class SpellChecker implements java.io.Closeable {
 
   /**
    * Check whether the word exists in the index.
-   * @param word
-   * @throws IOException
+   * @param word word to check
+   * @throws IOException If there is a low-level I/O error.
    * @throws AlreadyClosedException if the Spellchecker is already closed
    * @return true if the word exists in the index
    */
@@ -486,7 +490,7 @@ public class SpellChecker implements java.io.Closeable {
    * @param config {@link IndexWriterConfig} to use
    * @param fullMerge whether or not the spellcheck index should be fully merged
    * @throws AlreadyClosedException if the Spellchecker is already closed
-   * @throws IOException
+   * @throws IOException If there is a low-level I/O error.
    */
   public final void indexDictionary(Dictionary dict, IndexWriterConfig config, boolean fullMerge) throws IOException {
     synchronized (modifyCurrentIndexLock) {

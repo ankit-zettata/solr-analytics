@@ -372,11 +372,12 @@ var prepare_graph = function( graph_element, callback )
                 for( var s in state[c] )
                 {
                   var nodes = [];
-                  for( var n in state[c][s] )
+                  for( var n in state[c][s].replicas )
                   {
                     leaf_count++;
+                    var replica = state[c][s].replicas[n]
 
-                    var uri = state[c][s][n].base_url;
+                    var uri = replica.base_url;
                     var parts = uri.match( /^(\w+:)\/\/(([\w\d\.-]+)(:(\d+))?)(.+)$/ );
                     var uri_parts = {
                       protocol: parts[1],
@@ -392,9 +393,9 @@ var prepare_graph = function( graph_element, callback )
                     helper_data.port.push( uri_parts.port );
                     helper_data.pathname.push( uri_parts.pathname );
 
-                    var status = state[c][s][n].state;
+                    var status = replica.state;
 
-                    if( !live_nodes[state[c][s][n].node_name] )
+                    if( !live_nodes[replica.node_name] )
                     {
                       status = 'gone';
                     }
@@ -404,7 +405,7 @@ var prepare_graph = function( graph_element, callback )
                       data: {
                         type : 'node',
                         state : status,
-                        leader : 'true' === state[c][s][n].leader,
+                        leader : 'true' === replica.leader,
                         uri : uri_parts
                       }
                     };
@@ -589,41 +590,35 @@ var init_tree = function( tree_element )
 
                     var data_element = $( '#data', this );
 
-                    if( 0 !== parseInt( response.znode.prop.children_count ) )
-                    {
-                      data_element.hide();
-                    }
-                    else
-                    {
-                      var highlight = false;
-                      var data = '<em>File "' + response.znode.path + '" has no Content</em>';
+                    var highlight = false;
+                    var data = '<em>File "' + response.znode.path + '" has no Content</em>';
 
-                      if( response.znode.data )
+                    if( response.znode.data )
+                    {
+                      var classes = '';
+                      var path = response.znode.path.split( '.' );
+                      
+                      if( 1 < path.length )
                       {
-                        var classes = '';
-                        var path = response.znode.path.split( '.' );
-
-                        if( 1 < path.length )
-                        {
-                          highlight = true;
-                          classes = 'syntax language-' + path.pop().esc();
-                        }
-
-                        data = '<pre class="' + classes + '">'
-                             + response.znode.data.esc()
-                             + '</pre>';
+                        highlight = true;
+                        classes = 'syntax language-' + path.pop().esc();
                       }
+
+                      data = '<pre class="' + classes + '">'
+                           + response.znode.data.esc()
+                           + '</pre>';
+                    }
                                
 
-                      data_element
-                          .show()
-                          .html( data );
+                    data_element
+                        .show()
+                        .html( data );
 
-                      if( highlight )
-                      {
-                        hljs.highlightBlock( data_element.get(0) );
-                      }
+                    if( highlight )
+                    {
+                      hljs.highlightBlock( data_element.get(0) );
                     }
+                    
                   },
                   error : function( xhr, text_status, error_thrown)
                   {

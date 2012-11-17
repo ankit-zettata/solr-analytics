@@ -367,8 +367,9 @@ abstract class CSVLoaderBase extends ContentStreamLoader {
         addDoc(line,vals);
       }
     } finally{
-      stream.close(); // notify we need to close any open readers
-      IOUtils.closeQuietly(reader);
+      if (reader != null) {
+        IOUtils.closeQuietly(reader);
+      }
     }
   }
 
@@ -387,9 +388,9 @@ abstract class CSVLoaderBase extends ContentStreamLoader {
 
     // add any literals
     for (SchemaField sf : literals.keySet()) {
-    	String fn = sf.getName();
-    	String val = literals.get(sf);
-    	doc.addField(fn, val);
+      String fn = sf.getName();
+      String val = literals.get(sf);
+      doc.addField(fn, val);
     }
    
     template.solrDoc = doc;

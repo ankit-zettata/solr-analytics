@@ -53,6 +53,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakZombies.Conseque
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.rules.NoClassHooksShadowingRule;
 import com.carrotsearch.randomizedtesting.rules.NoInstanceHooksOverridesRule;
+import com.carrotsearch.randomizedtesting.rules.StaticFieldsInvariantRule;
 import com.carrotsearch.randomizedtesting.rules.SystemPropertiesInvariantRule;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
@@ -188,17 +189,19 @@ public abstract class LuceneTestCase extends Assert {
   public @interface Slow {}
 
   /**
-   * Annotation for tests that fail frequently. You can disable them
-   * if you want to run a long build and not stop on something that
-   * is a known problem.
+   * Annotation for tests that fail frequently and should
+   * be moved to a <a href="https://builds.apache.org/job/Lucene-BadApples-trunk-java7/">"vault" plan in Jenkins</a>.
+   *
+   * Tests annotated with this will be turned off by default. If you want to enable
+   * them, set:
    * <pre>
-   * -Dtests.badapples=false
+   * -Dtests.badapples=true
    * </pre>
    */
   @Documented
   @Inherited
   @Retention(RetentionPolicy.RUNTIME)
-  @TestGroup(enabled = true, sysProperty = SYSPROP_BADAPPLES)
+  @TestGroup(enabled = false, sysProperty = SYSPROP_BADAPPLES)
   public @interface BadApple {}
 
   /**
@@ -289,7 +292,7 @@ public abstract class LuceneTestCase extends Assert {
    * @see #classRules
    */
   private static final String [] IGNORED_INVARIANT_PROPERTIES = {
-    "user.timezone"
+    "user.timezone", "java.rmi.server.randomIDs"
   };
 
   /** Filesystem-based {@link Directory} implementations. */
@@ -358,12 +361,25 @@ public abstract class LuceneTestCase extends Assert {
       } else {
         Logger.getLogger(LuceneTestCase.class.getSimpleName()).warning(
             "Property '" + SYSPROP_MAXFAILURES + "'=" + maxFailures + ", 'failfast' is" +
-            		" ignored.");
+            " ignored.");
       }
     }
 
     ignoreAfterMaxFailures = new TestRuleIgnoreAfterMaxFailures(maxFailures);
   }
+
+  /**
+   * Max 10mb of static data stored in a test suite class after the suite is complete.
+   * Prevents static data structures leaking and causing OOMs in subsequent tests.
+   */
+  private final static long STATIC_LEAK_THRESHOLD = 10 * 1024 * 1024;
+
+  /** By-name list of ignored types like loggers etc. */
+  private final static Set<String> STATIC_LEAK_IGNORED_TYPES = 
+      Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(
+      "org.slf4j.Logger",
+      "org.apache.solr.SolrLogFormatter",
+      EnumSet.class.getName())));
 
   /**
    * This controls how suite-level rules are nested. It is important that _all_ rules declared
@@ -376,6 +392,19 @@ public abstract class LuceneTestCase extends Assert {
     .around(ignoreAfterMaxFailures)
     .around(suiteFailureMarker)
     .around(new TestRuleAssertionsRequired())
+    .around(new StaticFieldsInvariantRule(STATIC_LEAK_THRESHOLD, true) {
+      protected boolean accept(java.lang.reflect.Field field) {
+        // Don't count known classes that consume memory once.
+        if (STATIC_LEAK_IGNORED_TYPES.contains(field.getType().getName())) {
+          return false;
+        }
+        // Don't count references from ourselves, we're top-level.
+        if (field.getDeclaringClass() == LuceneTestCase.class) {
+          return false;
+        }
+        return super.accept(field);
+      }
+    })
     .around(new NoClassHooksShadowingRule())
     .around(new NoInstanceHooksOverridesRule() {
       @Override
@@ -920,6 +949,7 @@ public abstract class LuceneTestCase extends Assert {
     if (rarely(random)) {
       directory = new NRTCachingDirectory(directory, random.nextDouble(), random.nextDouble());
     }
+
     if (bare) {
       BaseDirectoryWrapper base = new BaseDirectoryWrapper(directory);
       closeAfterSuite(new CloseableDirectory(base, suiteFailureMarker));
@@ -1135,10 +1165,25 @@ public abstract class LuceneTestCase extends Assert {
 
   /** TODO: javadoc */
   public static IOContext newIOContext(Random random) {
+    return newIOContext(random, IOContext.DEFAULT);
+  }
+
+  /** TODO: javadoc */
+  public static IOContext newIOContext(Random random, IOContext oldContext) {
     final int randomNumDocs = random.nextInt(4192);
     final int size = random.nextInt(512) * randomNumDocs;
-    final IOContext context;
-    switch (random.nextInt(5)) {
+    if (oldContext.flushInfo != null) {
+      // Always return at least the estimatedSegmentSize of
+      // the incoming IOContext:
+      return new IOContext(new FlushInfo(randomNumDocs, Math.max(oldContext.flushInfo.estimatedSegmentSize, size)));
+    } else if (oldContext.mergeInfo != null) {
+      // Always return at least the estimatedMergeBytes of
+      // the incoming IOContext:
+      return new IOContext(new MergeInfo(randomNumDocs, Math.max(oldContext.mergeInfo.estimatedMergeBytes, size), random.nextBoolean(), _TestUtil.nextInt(random, 1, 100)));
+    } else {
+      // Make a totally random IOContext:
+      final IOContext context;
+      switch (random.nextInt(5)) {
       case 0:
         context = IOContext.DEFAULT;
         break;
@@ -1156,8 +1201,9 @@ public abstract class LuceneTestCase extends Assert {
         break;
       default:
         context = IOContext.DEFAULT;
+      }
+      return context;
     }
-    return context;
   }
 
   /**
