@@ -635,23 +635,17 @@ public class FacetComponent extends SearchComponent
     }
   }
   
-  private void mergePivotFacet(Map<Object,NamedList<Object>> pivotValues,
-      List<NamedList<Object>> shardPivotValues, int currentPivot,
-      int numberOfPivots, Map<Integer,Map<Object,Integer>> fieldCounts) {
-    Iterator<NamedList<Object>> shardPivotValuesIterator = shardPivotValues
-        .iterator();
+  private void mergePivotFacet(Map<Object,NamedList<Object>> pivotValues, List<NamedList<Object>> shardPivotValues, int currentPivot, int numberOfPivots, Map<Integer,Map<Object,Integer>> fieldCounts) {
+    Iterator<NamedList<Object>> shardPivotValuesIterator = shardPivotValues.iterator();
     boolean countFields = (fieldCounts != null);
     Map<Object,Integer> thisFieldCountMap = null;
     if (countFields) {
-      thisFieldCountMap = pivotHelper.getFieldCountMap(fieldCounts,
-          currentPivot);
+      thisFieldCountMap = pivotHelper.getFieldCountMap(fieldCounts,currentPivot);
     }
     while (shardPivotValuesIterator.hasNext()) {
       NamedList<Object> shardPivotValue = shardPivotValuesIterator.next();
-      Object valueObj = namedListHelper.getFromPivotList(PivotListEntry.VALUE,
-          shardPivotValue);
-      Object shardCountObj = namedListHelper.getFromPivotList(
-          PivotListEntry.COUNT, shardPivotValue);
+      Object valueObj = namedListHelper.getFromPivotList(PivotListEntry.VALUE,shardPivotValue);
+      Object shardCountObj = namedListHelper.getFromPivotList(PivotListEntry.COUNT, shardPivotValue);
       int shardCount = 0;
       if (shardCountObj instanceof Integer) {
         shardCount = (Integer) shardCountObj;
@@ -664,33 +658,23 @@ public class FacetComponent extends SearchComponent
         // pivot value not found, add to existing values
         pivotValues.put(valueObj, shardPivotValue);
         if (currentPivot < numberOfPivots) {
-          int pivotIdx = shardPivotValue.indexOf(
-              PivotListEntry.PIVOT.getName(), 0);
+          int pivotIdx = shardPivotValue.indexOf(PivotListEntry.PIVOT.getName(), 0);
           Object shardPivotObj = shardPivotValue.getVal(pivotIdx);
           if (shardPivotObj instanceof List) {
-            shardPivotValue.setVal(pivotIdx, pivotHelper.convertPivotsToMaps(
-                (List) shardPivotObj, currentPivot + 1, numberOfPivots,
-                fieldCounts));
+            shardPivotValue.setVal(pivotIdx, pivotHelper.convertPivotsToMaps((List) shardPivotObj, currentPivot + 1, numberOfPivots,fieldCounts));
           }
         }
       } else {
-        Object existingCountObj = namedListHelper.getFromPivotList(
-            PivotListEntry.COUNT, pivotValue);        
+        Object existingCountObj = namedListHelper.getFromPivotList(PivotListEntry.COUNT, pivotValue);        
         if (existingCountObj instanceof Integer) {
           int countIdx = pivotValue.indexOf(PivotListEntry.COUNT.getName(), 0);
-          pivotValue
-              .setVal(countIdx, ((Integer) existingCountObj) + shardCount);
+          pivotValue.setVal(countIdx, ((Integer) existingCountObj) + shardCount);
         } else {
-          StringBuffer errMsg = new StringBuffer(
-              "Count value for pivot field: ");
-          errMsg.append(namedListHelper.getFromPivotList(PivotListEntry.FIELD,
-              pivotValue));
+          StringBuffer errMsg = new StringBuffer("Count value for pivot field: ");
+          errMsg.append(namedListHelper.getFromPivotList(PivotListEntry.FIELD,pivotValue));
           errMsg.append(" with value: ");
-          errMsg.append(namedListHelper.getFromPivotList(PivotListEntry.VALUE,
-              pivotValue));
-          errMsg
-              .append(
-                  " is not of type Integer. Cannot increment count for this pivot. Count is of type: ");
+          errMsg.append(namedListHelper.getFromPivotList(PivotListEntry.VALUE,pivotValue));
+          errMsg.append(" is not of type Integer. Cannot increment count for this pivot. Count is of type: ");
           errMsg.append(existingCountObj.getClass().getCanonicalName());
           errMsg.append(" and value: ").append(existingCountObj);
           log.error(errMsg.toString());
@@ -705,12 +689,9 @@ public class FacetComponent extends SearchComponent
           Object pivotObj = pivotValue.get("pivot");
           if (shardPivotObj instanceof List) {
             if (pivotObj instanceof Map) {
-              mergePivotFacet((Map) pivotObj, (List) shardPivotObj,
-                  currentPivot + 1, numberOfPivots, fieldCounts);
+              mergePivotFacet((Map) pivotObj, (List) shardPivotObj,currentPivot + 1, numberOfPivots, fieldCounts);
             } else {
-              pivotValue.add("pivot", pivotHelper.convertPivotsToMaps(
-                  (List) shardPivotObj, currentPivot + 1, numberOfPivots,
-                  fieldCounts));
+              pivotValue.add("pivot", pivotHelper.convertPivotsToMaps((List) shardPivotObj, currentPivot + 1, numberOfPivots,fieldCounts));
             }
           }
         }
@@ -719,10 +700,8 @@ public class FacetComponent extends SearchComponent
     }
   }
   
-  private Object mergePivotStatistics(NamedList<NamedList<Object>> existingFields,
-		  NamedList<NamedList<Object>> shardFields) {
-	  
-	  boolean haveExistingStats = existingFields != null;
+  private Object mergePivotStatistics(NamedList<NamedList<Object>> existingFields, NamedList<NamedList<Object>> shardFields) {
+    boolean haveExistingStats = existingFields != null;
 	  boolean haveShardStats = shardFields != null;
 	  if(haveExistingStats && !haveShardStats) 
 		  return existingFields;
@@ -751,80 +730,71 @@ public class FacetComponent extends SearchComponent
 			  int fieldIndex = existingFields.indexOf(fieldName, 0);
 			  existingFields.setVal(fieldIndex, mergeFieldStatistics(existingSingleFieldStatistics, shardSingleFieldStatisticsData));
 		  }
-		  
-		  
-	  }
-	  
-	  
-	return existingFields;
-}
+	  }	  
+	  return existingFields;
+  }
 
-private NamedList<Object> mergeFieldStatistics(
-		NamedList<Object> existingSingleFieldStatistics,
-		NamedList<Object> shardSingleFieldStatistics) {
+  private NamedList<Object> mergeFieldStatistics(NamedList<Object> existingSingleFieldStatistics,NamedList<Object> shardSingleFieldStatistics) {
 
-	NamedList<Integer> existingBuckets = (NamedList<Integer>)existingSingleFieldStatistics.get(FacetParams.PERCENTILE_BUCKETS);
-	NamedList<Integer> shardBuckets = (NamedList<Integer>)shardSingleFieldStatistics.get(FacetParams.PERCENTILE_BUCKETS);
-	NamedList<Object> mergedBuckets = new NamedList<Object>();
-	NamedList<Object> mergedStatistics = new NamedList<Object>();
-	Double existingAverage;
-	Double shardAverage;
-  Double shardTotal = 0D;
-	int existingPercentilesCount;
-	int shardPercentilesCount;
-	
-	//left-padded numeric bucket names with 0's to size of upper fence, rely on string sorting between bucket lists
-	//solr datetime format is lex sortable
-	while(existingBuckets.size() > 0 && shardBuckets.size() > 0) {
-		
-		int comparison = shardBuckets.getName(0).compareTo(existingBuckets.getName(0));
-		
-		if(comparison > 0) {
-			mergedBuckets.add(existingBuckets.getName(0), existingBuckets.remove(0));			
-		}
-		else if(comparison < 0) {
-			mergedBuckets.add(shardBuckets.getName(0), shardBuckets.remove(0));
-		}
-		else if(comparison == 0) {
-			mergedBuckets.add(shardBuckets.getName(0), shardBuckets.remove(0) + existingBuckets.remove(0));
-		}		
-	}
-	while(existingBuckets.size() > 0) {
-		mergedBuckets.add(existingBuckets.getName(0), existingBuckets.remove(0));
-	}
-	while(shardBuckets.size() > 0) {
-		mergedBuckets.add(shardBuckets.getName(0), shardBuckets.remove(0));
-	}
-	mergedStatistics.add(FacetParams.PERCENTILE_BUCKETS, mergedBuckets);
+  	NamedList<Integer> existingBuckets = (NamedList<Integer>)existingSingleFieldStatistics.get(FacetParams.PERCENTILE_BUCKETS);
+  	NamedList<Integer> shardBuckets = (NamedList<Integer>)shardSingleFieldStatistics.get(FacetParams.PERCENTILE_BUCKETS);
+  	NamedList<Object> mergedBuckets = new NamedList<Object>();
+  	NamedList<Object> mergedStatistics = new NamedList<Object>();
+  	Double existingAverage;
+  	Double shardAverage;
+    Double shardTotal = 0D;
+  	int existingPercentilesCount;
+  	int shardPercentilesCount;
+  	
+  	//left-padded numeric bucket names with 0's to size of upper fence, rely on string sorting between bucket lists
+  	//solr datetime format is lex sortable
+  	while(existingBuckets.size() > 0 && shardBuckets.size() > 0) {
+  		
+  		int comparison = shardBuckets.getName(0).compareTo(existingBuckets.getName(0));
+  		
+  		if(comparison > 0) {
+  			mergedBuckets.add(existingBuckets.getName(0), existingBuckets.remove(0));			
+  		}
+  		else if(comparison < 0) {
+  			mergedBuckets.add(shardBuckets.getName(0), shardBuckets.remove(0));
+  		}
+  		else if(comparison == 0) {
+  			mergedBuckets.add(shardBuckets.getName(0), shardBuckets.remove(0) + existingBuckets.remove(0));
+  		}		
+  	}
+  	while(existingBuckets.size() > 0) {
+  		mergedBuckets.add(existingBuckets.getName(0), existingBuckets.remove(0));
+  	}
+  	while(shardBuckets.size() > 0) {
+  		mergedBuckets.add(shardBuckets.getName(0), shardBuckets.remove(0));
+  	}
+  	mergedStatistics.add(FacetParams.PERCENTILE_BUCKETS, mergedBuckets);
+  
+  	//don't forget the counts
+  	int shardFieldBucketTotal = (Integer)shardSingleFieldStatistics.get(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT);
+  	int existingFieldBucketTotal = (Integer)existingSingleFieldStatistics.get(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT);
+  	mergedStatistics.add(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT, shardFieldBucketTotal + existingFieldBucketTotal);
+  	
+  	//check for and include averages	
+  	shardAverage = (Double)shardSingleFieldStatistics.get("percentiles_average");
+  	if(shardAverage == null) {
+  		//do nothing further, averages were not requested
+  	}
+  	else {
+      shardTotal += (Double)shardSingleFieldStatistics.get("percentiles_sum");
+  		shardPercentilesCount = (Integer)shardSingleFieldStatistics.get("percentiles_count");
+  		existingAverage = (Double)existingSingleFieldStatistics.get("percentiles_average");
+  		existingPercentilesCount = (Integer)existingSingleFieldStatistics.get("percentiles_count");
+  		int mergedCount = existingPercentilesCount + shardPercentilesCount;
+  		double mergedAverage = ((shardPercentilesCount / mergedCount) * shardAverage) + ((existingPercentilesCount / mergedCount) * existingAverage);
+  		mergedStatistics.add("percentiles_average", mergedAverage);
+  		mergedStatistics.add("percentiles_count", mergedCount);
+      mergedStatistics.add("percentiles_sum", shardTotal);
+  	}
+  	return mergedStatistics;
+  }
 
-	//don't forget the counts
-	int shardFieldBucketTotal = (Integer)shardSingleFieldStatistics.get(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT);
-	int existingFieldBucketTotal = (Integer)existingSingleFieldStatistics.get(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT);
-	mergedStatistics.add(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT, shardFieldBucketTotal + existingFieldBucketTotal);
-	
-	//check for and include averages	
-	shardAverage = (Double)shardSingleFieldStatistics.get("percentiles_average");
-	if(shardAverage == null) {
-		//do nothing further, averages were not requested
-	}
-	else {
-    shardTotal += (Double)shardSingleFieldStatistics.get("percentiles_sum");
-		shardPercentilesCount = (Integer)shardSingleFieldStatistics.get("percentiles_count");
-		existingAverage = (Double)existingSingleFieldStatistics.get("percentiles_average");
-		existingPercentilesCount = (Integer)existingSingleFieldStatistics.get("percentiles_count");
-		int mergedCount = existingPercentilesCount + shardPercentilesCount;
-		double mergedAverage = ((shardPercentilesCount / mergedCount) * shardAverage) + ((existingPercentilesCount / mergedCount) * existingAverage);
-		mergedStatistics.add("percentiles_average", mergedAverage);
-		mergedStatistics.add("percentiles_count", mergedCount);
-    mergedStatistics.add("percentiles_sum", shardTotal);
-	}
-	
-	
-	
-	return mergedStatistics;
-}
-
-private void refineFacets(ResponseBuilder rb, ShardRequest sreq) {
+  private void refineFacets(ResponseBuilder rb, ShardRequest sreq) {
     FacetInfo fi = rb._facetInfo;
     
     for (ShardResponse srsp : sreq.responses) {
@@ -954,84 +924,81 @@ private void refineFacets(ResponseBuilder rb, ShardRequest sreq) {
 	  }
 	  
 	  return pivotFacets;
-}
+  }
 
-private List<NamedList<Object>> convertPivotList(List<NamedList<Object>> val, SolrParams required) {
+  private List<NamedList<Object>> convertPivotList(List<NamedList<Object>> val, SolrParams required) {
 
-	for(int i =0; i < val.size(); i++) {
-		val.set(i, convertPivotStatistics(val.get(i),required));
-	}
+    for(int i =0; i < val.size(); i++) {
+      val.set(i, convertPivotStatistics(val.get(i),required));
+    }
 	
-	return val;
-}
+    return val;
+  }
 
-private NamedList<Object> convertPivotStatistics(NamedList<Object> thisPivot, SolrParams required) {
-
+  private NamedList<Object> convertPivotStatistics(NamedList<Object> thisPivot, SolrParams required) {
 	
-	int pivotIndex = thisPivot.indexOf(PivotListEntry.PIVOT.getName(), 0);
-	if(pivotIndex > -1) {
-		ArrayList<Object> furtherPivots = (ArrayList<Object>)thisPivot.getVal(pivotIndex);
-		ArrayList<Object> convertedFurtherPivots = new ArrayList<Object>();
-		for(int i = 0; i < furtherPivots.size(); i++) {
-		 convertedFurtherPivots.add(convertPivotStatistics((NamedList<Object>)furtherPivots.get(i),required));
-		}
-		thisPivot.setVal(pivotIndex, convertedFurtherPivots);
-	}
-	int statsIndex = thisPivot.indexOf(PivotListEntry.STATISTICS.getName(), 0);
-	if(statsIndex > -1) {
+  	int pivotIndex = thisPivot.indexOf(PivotListEntry.PIVOT.getName(), 0);
+  	if(pivotIndex > -1) {
+  		ArrayList<Object> furtherPivots = (ArrayList<Object>)thisPivot.getVal(pivotIndex);
+  		ArrayList<Object> convertedFurtherPivots = new ArrayList<Object>();
+  		for(int i = 0; i < furtherPivots.size(); i++) {
+  		 convertedFurtherPivots.add(convertPivotStatistics((NamedList<Object>)furtherPivots.get(i),required));
+  		}
+  		thisPivot.setVal(pivotIndex, convertedFurtherPivots);
+  	}
+  	int statsIndex = thisPivot.indexOf(PivotListEntry.STATISTICS.getName(), 0);
+  	if(statsIndex > -1) {
+  		
+  		thisPivot.setVal(statsIndex, convertPivotStatisticsFields((NamedList<Object>)thisPivot.getVal(statsIndex), required));
+  	}
+	
+  	return thisPivot;
+
+  }
+
+  private Object convertPivotStatisticsFields(NamedList<Object> listOfFields, SolrParams required) {
+	
+    for(int i =0 ; i < listOfFields.size(); i++ ) {
+      String fieldName = listOfFields.getName(i);
+      listOfFields.setVal(i, convertOnePivotStatisticsField((NamedList<Object>)listOfFields.getVal(i), required, fieldName));
+    }
+	
+    return listOfFields;
+  }
+
+  private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> statsData, SolrParams solrParams, String fieldName) {
+	
+    Integer totalCount = (Integer)statsData.get(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT);
+    if(totalCount != null) {
+      RequiredSolrParams required = new RequiredSolrParams(solrParams);
+      String[] requestedPercentiles = required.getFieldParams(fieldName, FacetParams.PERCENTILE_REQUESTED_PERCENTILES);
+      boolean calculateAverages = solrParams.getBool(FacetParams.PERCENTILE_AVERAGES, false);
 		
-		thisPivot.setVal(statsIndex, convertPivotStatisticsFields((NamedList<Object>)thisPivot.getVal(statsIndex), required));
-	}
-	
-	
-	return thisPivot;
+      Integer bucketsIndex = statsData.indexOf(FacetParams.PERCENTILE_BUCKETS, 0);
+		  FacetPercentiles fp = new FacetPercentiles(requestedPercentiles, totalCount);
+		  if(bucketsIndex > -1) {		
+		    NamedList<Integer> buckets = (NamedList<Integer>)statsData.getVal(bucketsIndex);
+		    for(int i =0; i < buckets.size() && (fp.stillLookingForPercentiles() || calculateAverages); i++) {
+		      fp.processFacetCount(buckets.getName(i), buckets.getVal(i));
+		      if(calculateAverages) {
+		        fp.accumulateAverage(buckets.getName(i), buckets.getVal(i));
+		      }
+		    }
+		  }
+  		statsData = new NamedList<Object>();
+  		statsData.add(FacetParams.PERCENTILE, fp.getPercentiles());
+  		if(calculateAverages) {
+  			statsData.add("percentiles_average", fp.getAverage());
+  			statsData.add("percentiles_count", fp.getTotalCount());
+        statsData.add("percentiles_sum", fp.getTotal());
+  		}
+    } else {
+      statsData = new NamedList<Object>();
+    }
+    return statsData;
+  }
 
-}
-
-private Object convertPivotStatisticsFields(NamedList<Object> listOfFields, SolrParams required) {
-	
-	for(int i =0 ; i < listOfFields.size(); i++ ) {
-		String fieldName = listOfFields.getName(i);
-		listOfFields.setVal(i, convertOnePivotStatisticsField((NamedList<Object>)listOfFields.getVal(i), required, fieldName));
-	}
-	
-	return listOfFields;
-}
-
-private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> statsData, SolrParams solrParams, String fieldName) {
-	
-	Integer totalCount = (Integer)statsData.get(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT);
-	if(totalCount != null) {
-		RequiredSolrParams required = new RequiredSolrParams(solrParams);
-		String[] requestedPercentiles = required.getFieldParams(fieldName, FacetParams.PERCENTILE_REQUESTED_PERCENTILES);
-		boolean calculateAverages = solrParams.getBool(FacetParams.PERCENTILE_AVERAGES, false);
-		
-		Integer bucketsIndex = statsData.indexOf(FacetParams.PERCENTILE_BUCKETS, 0);
-		FacetPercentiles fp = new FacetPercentiles(requestedPercentiles, totalCount);
-		if(bucketsIndex > -1) {		
-			NamedList<Integer> buckets = (NamedList<Integer>)statsData.getVal(bucketsIndex);
-			for(int i =0; i < buckets.size() && (fp.stillLookingForPercentiles() || calculateAverages); i++) {
-				fp.processFacetCount(buckets.getName(i), buckets.getVal(i));
-				if(calculateAverages) {
-					fp.accumulateAverage(buckets.getName(i), buckets.getVal(i));
-				}
-			}
-		}
-		statsData = new NamedList<Object>();
-		statsData.add(FacetParams.PERCENTILE, fp.getPercentiles());
-		if(calculateAverages) {
-			statsData.add("percentiles_average", fp.getAverage());
-			statsData.add("percentiles_count", fp.getTotalCount());
-      statsData.add("percentiles_sum", fp.getTotal());
-		}
-	}
-	else {
-		statsData = new NamedList<Object>();
-	}
-	return statsData;
-}
-
-// use <int> tags for smaller facet counts (better back compatibility)
+  // use <int> tags for smaller facet counts (better back compatibility)
   private Number num(long val) {
    if (val < Integer.MAX_VALUE) return (int)val;
    else return val;
@@ -1053,7 +1020,7 @@ private NamedList<Object> convertOnePivotStatisticsField(NamedList<Object> stats
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/handler/component/FacetComponent.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/handler/component/FacetComponent.java $";
   }
 
   @Override

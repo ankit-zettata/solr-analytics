@@ -832,45 +832,47 @@ public class QueryComponent extends SearchComponent
 
         // go through every doc in this response, construct a ShardDoc, and
         // put it in the priority queue so it can be ordered.
-        for (int i=0; i<docs.size(); i++) {
-          SolrDocument doc = docs.get(i);
-          Object id = doc.getFieldValue(uniqueKeyField.getName());
-
-          String prevShard = uniqueDoc.put(id, srsp.getShard());
-          if (prevShard != null) {
-            // duplicate detected
-            numFound--;
-
-            // For now, just always use the first encountered since we can't currently
-            // remove the previous one added to the priority queue.  If we switched
-            // to the Java5 PriorityQueue, this would be easier.
-            continue;
-            // make which duplicate is used deterministic based on shard
-            // if (prevShard.compareTo(srsp.shard) >= 0) {
-            //  TODO: remove previous from priority queue
-            //  continue;
-            // }
-          }
-
-          ShardDoc shardDoc = new ShardDoc();
-          shardDoc.id = id;
-          shardDoc.shard = srsp.getShard();
-          shardDoc.orderInShard = i;
-          Object scoreObj = doc.getFieldValue("score");
-          if (scoreObj != null) {
-            if (scoreObj instanceof String) {
-              shardDoc.score = Float.parseFloat((String)scoreObj);
-            } else {
-              shardDoc.score = (Float)scoreObj;
+        // for analytics we can avoid this is there is no unique key
+        if (uniqueKeyField != null) {
+          for (int i=0; i<docs.size(); i++) {
+            SolrDocument doc = docs.get(i);
+            Object id = doc.getFieldValue(uniqueKeyField.getName());
+  
+            String prevShard = uniqueDoc.put(id, srsp.getShard());
+            if (prevShard != null) {
+              // duplicate detected
+              numFound--;
+  
+              // For now, just always use the first encountered since we can't currently
+              // remove the previous one added to the priority queue.  If we switched
+              // to the Java5 PriorityQueue, this would be easier.
+              continue;
+              // make which duplicate is used deterministic based on shard
+              // if (prevShard.compareTo(srsp.shard) >= 0) {
+              //  TODO: remove previous from priority queue
+              //  continue;
+              // }
             }
-          }
-
-          shardDoc.sortFieldValues = sortFieldValues;
-
-          queue.insertWithOverflow(shardDoc);
-        } // end for-each-doc-in-response
+  
+            ShardDoc shardDoc = new ShardDoc();
+            shardDoc.id = id;
+            shardDoc.shard = srsp.getShard();
+            shardDoc.orderInShard = i;
+            Object scoreObj = doc.getFieldValue("score");
+            if (scoreObj != null) {
+              if (scoreObj instanceof String) {
+                shardDoc.score = Float.parseFloat((String)scoreObj);
+              } else {
+                shardDoc.score = (Float)scoreObj;
+              }
+            }
+  
+            shardDoc.sortFieldValues = sortFieldValues;
+  
+            queue.insertWithOverflow(shardDoc);
+          } // end for-each-doc-in-response
+        }
       } // end for-each-response
-
 
       // The queue now has 0 -> queuesize docs, where queuesize <= start + rows
       // So we want to pop the last documents off the queue to get
@@ -887,6 +889,9 @@ public class QueryComponent extends SearchComponent
         resultIds.put(shardDoc.id.toString(), shardDoc);
       }
 
+      // Add hits for distributed requests
+      // https://issues.apache.org/jira/browse/SOLR-3518
+      rb.rsp.addToLog("hits", numFound);
 
       SolrDocumentList responseDocs = new SolrDocumentList();
       if (maxScore!=null) responseDocs.setMaxScore(maxScore);
@@ -1001,7 +1006,7 @@ public class QueryComponent extends SearchComponent
 
   @Override
   public String getSource() {
-    return "$URL: http://svn.apache.org/repos/asf/lucene/dev/branches/branch_4x/solr/core/src/java/org/apache/solr/handler/component/QueryComponent.java $";
+    return "$URL: https://svn.apache.org/repos/asf/lucene/dev/branches/lucene_solr_4_0/solr/core/src/java/org/apache/solr/handler/component/QueryComponent.java $";
   }
 
   @Override

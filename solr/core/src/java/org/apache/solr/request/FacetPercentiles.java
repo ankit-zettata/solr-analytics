@@ -20,7 +20,7 @@ public class FacetPercentiles {
 	private NamedList<Integer> buckets = new NamedList<Integer>();
 	private NamedList<String> percentiles;
 	private double average = 0;
-  private double total = 0;
+	private double total = 0;
 	private int totalCount = 0;
 
 	public double getAverage() {
@@ -30,11 +30,10 @@ public class FacetPercentiles {
 	public int getTotalCount() {
 		return totalCount;
 	}
-  
-  public double getTotal() {
-    return total;
-  }
 	
+	public double getTotal() {
+	  return total;
+	}
 	
 	public FacetPercentiles(String[] requestedPercentiles, int totalCount) {
 			    
@@ -66,15 +65,12 @@ public class FacetPercentiles {
 	}
 	
 	public void accumulateAverage(String facetValue, int count) {
-		double val = 0;
-		try{
-			val = Double.parseDouble(facetValue);
-		}
-		catch (Exception e) {
-			
-		}
-		average = average + (val * count/totalCount);
-    total += val * count;
+	  double val = 0;
+	  try {
+	    val = Double.parseDouble(facetValue);
+	  } catch (Exception e) { }
+	  average = average + (val * count/totalCount);
+	  total += val * count;
 	}
 	
 	public void storeFacetCount(String facetValue, int count) {
