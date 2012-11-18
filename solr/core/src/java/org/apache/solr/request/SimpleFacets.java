@@ -219,105 +219,105 @@ public class SimpleFacets {
   }
 
   public NamedList<Object> getFacetPercentileCounts() throws IOException {  
-	  final NamedList<Object> resOuter = new SimpleOrderedMap<Object>();
-	  final String[] fields = params.getParams(FacetParams.PERCENTILE_FIELD);
-
-	  if (null == fields || 0 == fields.length) return null;	  
-	  
-	  for (String f : fields) {
-	      getFacetPercentileCounts(f, resOuter);	    
-	  }	  
-	   
-	  return resOuter;
-
+    final NamedList<Object> resOuter = new SimpleOrderedMap<Object>();
+    final String[] fields = params.getParams(FacetParams.PERCENTILE_FIELD);
+    
+    if (null == fields || 0 == fields.length) return null;	  
+    
+    for (String f : fields) {
+      getFacetPercentileCounts(f, resOuter);	    
+    }
+    
+    return resOuter;
   }
 
-private void getFacetPercentileCounts(String facetPercentile, NamedList<Object> resOuter) throws  IOException  {
-	 final IndexSchema schema = searcher.getSchema();
-	 try {
-		 parseParams(FacetParams.PERCENTILE_FIELD, facetPercentile);
-	 }
-	 catch(ParseException e) {
-		 throw new SolrException
-		 	(SolrException.ErrorCode.BAD_REQUEST,
-		 			"unable to parse field parameters for percentiles for "+facetPercentile);
-	 }
-	 String f = facetValue;
+  private void getFacetPercentileCounts(String facetPercentile, 
+      NamedList<Object> resOuter) throws  IOException  {
+    final IndexSchema schema = searcher.getSchema();
+    try {
+      parseParams(FacetParams.PERCENTILE_FIELD, facetPercentile);
+    } catch(ParseException e) {
+      throw new SolrException(SolrException.ErrorCode.BAD_REQUEST,
+          "unable to parse field parameters for percentiles for "+facetPercentile);
+    }
+    String f = facetValue;
+    
+    final SchemaField sf = schema.getField(f);
+    final FieldType ft = sf.getType();
+    
+    RangeEndpointCalculator<?> calc = getCalc(sf,ft);
+    resOuter.add(key, getFacetPercentileCounts(sf, calc));
+  }
 
-	 final SchemaField sf = schema.getField(f);
-	 final FieldType ft = sf.getType();
-	 
-	 RangeEndpointCalculator<?> calc = getCalc(sf,ft);
-	 resOuter.add(key, getFacetPercentileCounts(sf, calc));
-}
-
-private <T extends Comparable<T>> NamedList getFacetPercentileCounts(SchemaField sf,
-		RangeEndpointCalculator<T> calc) throws IOException {
-	
-	final String f = sf.getName();
+  private <T extends Comparable<T>> NamedList getFacetPercentileCounts(SchemaField sf, 
+      RangeEndpointCalculator<T> calc) throws IOException {
+    
+    final String f = sf.getName();
     final NamedList<Object> res = new SimpleOrderedMap<Object>();
     final T start = calc.getValue(required.getFieldParam(f,FacetParams.PERCENTILE_LOWER_FENCE));
     final T end = calc.getValue(required.getFieldParam(f,FacetParams.PERCENTILE_UPPER_FENCE));
     if (end.compareTo(start) < 0) {
-        throw new SolrException
-          (SolrException.ErrorCode.BAD_REQUEST,
-           "percentile 'upper.fence' comes before 'lower.fence': "+end+" < "+start);
+      throw new SolrException(SolrException.ErrorCode.BAD_REQUEST,
+          "percentile 'upper.fence' comes before 'lower.fence': "+end+" < "+start);
     }
+    
     final String gapAsString = required.getFieldParam(f, FacetParams.PERCENTILE_GAP);
     
     T low = start;
     RangeCounter rangeCounter = new RangeCounter(calc, start, end, gapAsString, low, searcher, base, sf);
     
     final String startS = calc.formatValue(start);
-    final String endS = calc.formatValue(end);    
+    final String endS = calc.formatValue(end);
     int totalCount = this.rangeCount(sf, startS, endS, rangeCounter.includeLower, rangeCounter.includeUpper);
     FacetPercentiles percentiles = new FacetPercentiles(required.getFieldParams(f, FacetParams.PERCENTILE_REQUESTED_PERCENTILES), totalCount);
     boolean shouldReturnBucketsInsteadOfCalculatingPercentiles = params.getBool(FacetParams.PERCENTILE_DISTRIBUTED, false);
     boolean shouldCalculateAverages = params.getBool(FacetParams.PERCENTILE_AVERAGES, false);
     boolean fieldIsADateField = sf.getType() instanceof DateField;
     while(rangeCounter.hasMoreCounts() && (percentiles.stillLookingForPercentiles() || shouldCalculateAverages)) {
-    	CountPair<String, Integer> currentCount = rangeCounter.getNextCount();    	
-    	if(currentCount.val != 0) {
-    		T midpointOfRangeBucket = calc.findMiddle(calc.getValue(currentCount.key), gapAsString);
-    		String midpoint = "";
-    		if(shouldReturnBucketsInsteadOfCalculatingPercentiles || shouldCalculateAverages) {
-    			midpoint = calc.formatValue(midpointOfRangeBucket);
-    		}
-    		if(shouldReturnBucketsInsteadOfCalculatingPercentiles) {    			
-    			if(!(fieldIsADateField)) { //left-pad with 0's so we can rely on lexicographic sorting in distributed search
-    				int leftDigits = midpoint.split("\\.")[0].length();
-    				int rightDigits = midpoint.length() - leftDigits;
-    				int maxsize = endS.split("\\.")[0].length();
-    				int padTo = maxsize + rightDigits;
-    				midpoint = org.apache.commons.lang.StringUtils.leftPad(midpoint, padTo, '0');
-    			}
-    			percentiles.storeFacetCount(midpoint, currentCount.val);
-    		}
-    		else {
-    			percentiles.processFacetCount(calc.formatValue(midpointOfRangeBucket), currentCount.val);
-    		}
-    		if(shouldCalculateAverages) {
-    			percentiles.accumulateAverage(midpoint, currentCount.val);
-    		}
-    	}    	    	
+      CountPair<String, Integer> currentCount = rangeCounter.getNextCount();
+      if(currentCount.val != 0) {
+        T midpointOfRangeBucket = calc.findMiddle(calc.getValue(currentCount.key), gapAsString);
+        String midpoint = "";
+        if(shouldReturnBucketsInsteadOfCalculatingPercentiles || shouldCalculateAverages) {
+          midpoint = calc.formatValue(midpointOfRangeBucket);
+        }
+        
+        if(shouldReturnBucketsInsteadOfCalculatingPercentiles) {
+          if(!(fieldIsADateField)) { //left-pad with 0's so we can rely on lexicographic sorting in distributed search
+            int leftDigits = midpoint.split("\\.")[0].length();
+            int rightDigits = midpoint.length() - leftDigits;
+            int maxsize = endS.split("\\.")[0].length();
+            int padTo = maxsize + rightDigits;
+            midpoint = org.apache.commons.lang.StringUtils.leftPad(midpoint, padTo, '0');
+          }
+          percentiles.storeFacetCount(midpoint, currentCount.val);
+        } else {
+          percentiles.processFacetCount(calc.formatValue(midpointOfRangeBucket), currentCount.val);
+        }
+        
+        if(shouldCalculateAverages) {
+          percentiles.accumulateAverage(midpoint, currentCount.val);
+        }
+      }   	    	
     }
-	if(shouldReturnBucketsInsteadOfCalculatingPercentiles) {
-		res.add(FacetParams.PERCENTILE_BUCKETS, percentiles.getBuckets());
-		res.add(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT, totalCount);
-	}
-	else {
-		res.add(FacetParams.PERCENTILE, percentiles.getPercentiles());
-	}
-	if(shouldCalculateAverages) {		
-		res.add("percentiles_average", percentiles.getAverage());
-		res.add("percentiles_count", percentiles.getTotalCount());
-    res.add("percentiles_sum", percentiles.getTotal());
-	}
+    
+    if(shouldReturnBucketsInsteadOfCalculatingPercentiles) {
+      res.add(FacetParams.PERCENTILE_BUCKETS, percentiles.getBuckets());
+      res.add(FacetParams.PERCENTILE_SHARD_TOTAL_COUNT, totalCount);
+    } else {
+      res.add(FacetParams.PERCENTILE, percentiles.getPercentiles());
+    }
+    
+    if(shouldCalculateAverages) {		
+      res.add("percentiles_average", percentiles.getAverage());
+      res.add("percentiles_count", percentiles.getTotalCount());
+      res.add("percentiles_sum", percentiles.getTotal());
+    }
+    
     return res;
-	
-}
+  }
 
-/**
+  /**
    * Returns a list of facet counts for each of the facet queries 
    * specified in the params
    *
@@ -1135,7 +1135,7 @@ private <T extends Comparable<T>> NamedList getFacetPercentileCounts(SchemaField
     final FieldType ft = sf.getType();
 
     RangeEndpointCalculator<?> calc = getCalc(sf,ft);
-
+    
     resOuter.add(key, getFacetRangeCounts(sf, calc));
   }
 
