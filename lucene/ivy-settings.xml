@@ -27,6 +27,7 @@
   <include url="${ivy.default.settings.dir}/ivysettings-main-chain.xml"/>
 
   <resolvers>
+    <ibiblio name="cron4j-releases" root="https://maven-us.nuxeo.org/nexus/content/repositories/public" m2compatible="true" />
     <ibiblio name="sonatype-releases" root="http://oss.sonatype.org/content/repositories/releases" m2compatible="true" />
 
     <!-- you might need to tweak this from china so it works -->
@@ -45,6 +46,7 @@
       <resolver ref="local"/>
       <!-- <resolver ref="local-maven-2" /> -->
       <resolver ref="main"/>
+      <resolver ref="cron4j-releases" />
       <resolver ref="sonatype-releases" />
       <resolver ref="working-chinese-mirror" />
     </chain>
