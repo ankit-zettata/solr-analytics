@@ -1,0 +1,18 @@
+                    Apache Solr - DataImportHandler
+                            Release Notes
+
+Introduction
+------------
+Provides transformers used in common MDM strategies and implementations of solr
+that take into account most data is feed from external systems and the need
+to manage some basic ETL tasks and cleaning tasks is best put into SOLR rather
+than writing and using custom ETL packages.
+
+
+$Id: CHANGES.txt 1212394 2011-12-09 13:17:12Z mvg $
+==================  4.0.0-dev ==============
+
++ Add transliterate transformer which will perform Japanese transliteration
+   to automatically correct half-width and full-width katakana and ascii characters
+   to their normalized form (half-width katakana => full, full-width ascii => half).
+   Uses the ICU library to accomplish.
