@@ -93,6 +93,9 @@ public class TransliterateTransformer extends Transformer {
         txt = transliterator.transliterate(txt);
       }
       
+      txt = txt.replaceAll("([ァ-ン])(-)", "$1ー");
+      txt = txt.replaceAll("(ｰ)", "ー");
+      
       row.put(columnName, txt);
 
     }
