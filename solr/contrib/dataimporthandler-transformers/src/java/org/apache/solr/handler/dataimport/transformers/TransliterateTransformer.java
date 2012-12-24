@@ -86,8 +86,8 @@ public class TransliterateTransformer extends Transformer {
       if (value == null) continue;
       
       String txt = value.toString().trim();
-      
-      String[] chain = expr.split("|");
+            
+      String[] chain = expr.split("\\|");
       for (String expression : chain) {
         Transliterator transliterator = getInstance(expression);
         txt = transliterator.transliterate(txt);
