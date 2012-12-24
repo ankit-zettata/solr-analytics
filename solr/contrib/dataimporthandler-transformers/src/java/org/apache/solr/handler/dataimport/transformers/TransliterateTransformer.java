@@ -17,7 +17,6 @@
 package org.apache.solr.handler.dataimport.transformers;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -52,9 +51,29 @@ import org.apache.solr.handler.dataimport.*;
 public class TransliterateTransformer extends Transformer {
 
   private static final Logger LOG = LoggerFactory.getLogger(TransliterateTransformer.class);
+  
+  private Map<String, Transliterator> cache = new HashMap<String,Transliterator>();
+  
+  public TransliterateTransformer() {
+    
+  }
+  
+  /**
+   * Grabs a cached instance of the transliterator.
+   * 
+   * @param arg The text expression to run through the transliterator.
+   * @return The transliterator for the specified expression.
+   */
+  private Transliterator getInstance(String arg) {
+    Transliterator transliterator = cache.get(arg);
+    if (null != transliterator) return transliterator;
+    
+    transliterator = Transliterator.getInstance(arg);
+    cache.put(arg, transliterator);
+    return transliterator;
+  }
 
   @Override
-  @SuppressWarnings("unchecked")
   public Object transformRow(Map<String, Object> row, Context context) {
 
     for (Map<String, String> map : context.getAllEntityFields()) {
@@ -62,14 +81,19 @@ public class TransliterateTransformer extends Transformer {
       if (expr == null)
         continue;
       
-      Transliterator transliterator = Transliterator.getInstance(expr);
-
       String columnName = map.get(DataImporter.COLUMN);
       Object value = row.get(columnName);
+      if (value == null) continue;
       
-      if (value != null) {
-        row.put(columnName, transliterator.transliterate(value.toString().trim()));
+      String txt = value.toString().trim();
+      
+      String[] chain = expr.split("|");
+      for (String expression : chain) {
+        Transliterator transliterator = getInstance(expression);
+        txt = transliterator.transliterate(txt);
       }
+      
+      row.put(columnName, txt);
 
     }
 
