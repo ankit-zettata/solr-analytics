@@ -47,7 +47,7 @@ public class TestTransliterate {
   
   @Test
   public void testTrans() {
-    String txt = "東京,とうきょう,コーヒー,ｺｰﾋｰ,Cat,ＣＡＴ,［＝＋＄＃，］";
+    String txt = "東京,とうきょう,コーヒー,ｺｰﾋｰ,Cat,ＣＡＴ,［＝＋＄＃，］ ";
     
     String[] chain = "[:^Hiragana:];Upper;Hiragana-Katakana;|[:^Katakana:];Upper;Fullwidth-Halfwidth;".split("\\|");
     for (String expression : chain) {
@@ -55,7 +55,12 @@ public class TestTransliterate {
       txt = transliterator.transliterate(txt);
     }
     
-    Assert.assertEquals("東京,とうきょう,コｰヒｰ,コｰヒｰ,CAT,CAT,[=+$#,]", txt);
+    Assert.assertEquals("東京,とうきょう,コｰヒｰ,コｰヒｰ,CAT,CAT,[=+$#,] ", txt);
+    
+    // System.out.println("カタカナ-カタカナ-カタカナ".replaceAll("([ァ-ン])(-)", "$1ー"));
+    
+    Assert.assertEquals("シャンプｰ".replaceAll("(ｰ)", "ー"), "シャンプー");
+    
   }
   
 }
